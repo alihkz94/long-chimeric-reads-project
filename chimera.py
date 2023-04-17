@@ -55,3 +55,4 @@ if __name__ == "__main__":
 
     # Call the generate_chimeras function with the parsed arguments
     generate_chimeras(input_fastq, output_fastq, chimera_info_file, num_chimeras)
+
