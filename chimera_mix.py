@@ -41,3 +41,8 @@ if __name__ == "__main__":
     num_chimeras = int(sys.argv[5])
 
     generate_chimeras(input_fasta1, input_fasta2, output_fasta, chimera_info_file, num_chimeras)
+
+
+#run the command with the command below: 
+#python generate_chimeras.py input_fasta1.fasta input_fasta2.fasta output_chimeras.fasta chimera_info.txt num_chimeras
+
