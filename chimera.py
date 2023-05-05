@@ -1,58 +1,80 @@
-# Import necessary libraries
+import os
 import random
 import sys
 from Bio import SeqIO
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
+from Bio.Alphabet import IUPAC
 
-# Define the generate_chimeras function with appropriate parameters
-def generate_chimeras(fastq_file, output_file, chimera_info_file, num_chimeras, chimera_id_prefix="chimera"):
-    # Read the input FASTQ file and store the records in a list
-    records = list(SeqIO.parse(fastq_file, "fastq"))
-    # Initialize an empty list to store chimeras
+def mutate_sequence(seq_record, mutation_rate):
+    sequence = str(seq_record.seq)
+    mutated_sequence = []
+
+    for base in sequence:
+        if random.random() < mutation_rate:
+            mutated_sequence.append(random.choice('ACTG'.replace(base, '')))
+        else:
+            mutated_sequence.append(base)
+
+    mutated_seq_string = "".join(mutated_sequence)
+    mutated_seq_record = SeqRecord(Seq(mutated_seq_string, IUPAC.ambiguous_dna), id=seq_record.id, description=seq_record.description)
+
+    return mutated_seq_record
+
+def generate_chimeras(selected_input_file, input_files, output_file, chimera_info_file, chimera_id_prefix="chimera"):
+    records = []
+    for input_file in input_files:
+        records.extend(list(SeqIO.parse(input_file, "fasta")))
+
+    main_records = list(SeqIO.parse(selected_input_file, "fasta"))
+    mixed_records = records
+
+    total_reads = len(main_records)
+    num_chimeras = int(total_reads * random.uniform(0.01, 0.03))  # 1-3% chimeric reads
+
     chimeras = []
 
-    # Open the chimera_info_file for writing
     with open(chimera_info_file, "w") as chimera_info_handle:
-        # Write the header for the chimera info file
-        chimera_info_handle.write("chimera_id\tseq1_id\tseq2_id\tbreakpoint\n")
+        chimera_info_handle.write("chimera_id\tseq1_id\tseq2_id\tbreakpoint\treversed\n")
 
-        # Iterate for the desired number of chimeras
         for i in range(num_chimeras):
-            # Randomly sample two sequences from the input records
-            seq1, seq2 = random.sample(records, 2)
-            # Generate a random breakpoint within the range of sequence length
+            seq1, seq2 = random.sample(mixed_records, 2)
             breakpoint = random.randint(1, len(seq1) - 1)
-            # Create the chimeric sequence by joining seq1 and seq2 at the breakpoint
-            chimera_seq = seq1[:breakpoint] + seq2[breakpoint:]
-            # Create the chimera ID with a prefix and index
+            chimera_seq = seq1.seq[:breakpoint] + seq2.seq[breakpoint:]
+
+            if i < int(num_chimeras * 0.04):
+                chimera_seq = chimera_seq.reverse_complement()
+
             chimera_id = f"{chimera_id_prefix}_{i}"
-            # Assign the chimera ID to the sequence
-            chimera_seq.id = chimera_id
-            # Clear the sequence description
-            chimera_seq.description = ""
-            # Append the chimeric sequence to the list of chimeras
-            chimeras.append(chimera_seq)
+            chimera_record = SeqRecord(Seq(str(chimera_seq), IUPAC.ambiguous_dna), id=chimera_id, description="")
 
-            # Write the chimera info to the chimera_info_file
-            chimera_info_handle.write(f"{chimera_id}\t{seq1.id}\t{seq2.id}\t{breakpoint}\n")
+            # Introduce mutations
+            mutation_rate = 0.005  # Adjust this value based on the desired mutation rate
+            chimera_record = mutate_sequence(chimera_record, mutation_rate)
 
-    # Open the output FASTQ file for writing
+            chimeras.append(chimera_record)
+
+            reversed_status = "yes" if i < int(num_chimeras * 0.04) else "no"
+            chimera_info_handle.write(f"{chimera_id}\t{seq1.id}\t{seq2.id}\t{breakpoint}\t{reversed_status}\n")
+
+    # Insert chimeric reads at specified positions
+    for chimera in chimeras:
+        position = random.randint(0, len(main_records) - 1)
+        main_records.insert(position, chimera)
+
     with open(output_file, "w") as output_handle:
-        # Write the original records and chimeras to the output file
-        SeqIO.write(records + chimeras, output_handle, "fastq")
+        SeqIO.write(main_records, output_handle, "fasta")
 
-# Check if the script is being executed as the main program
 if __name__ == "__main__":
-    # Check if the number of command-line arguments is correct
-    if len(sys.argv) != 5:
-        print(f"Usage: {sys.argv[0]} input_fastq output_fastq chimera_info_file num_chimeras")
+    if len(sys.argv) != 6:
+        print(f"Usage: {sys.argv[0]} selected_input_file input_directory output_fasta chimera_info_file")
         sys.exit(1)
 
-    # Parse the command-line arguments
-    input_fastq = sys.argv[1]
-    output_fastq = sys.argv[2]
-    chimera_info_file = sys.argv[3]
-    num_chimeras = int(sys.argv[4])
+    selected_input_file = sys.argv[1]
+    input_directory = sys.argv[2]
+    output_fasta = sys.argv[3]
+    chimera_info_file = sys.argv[4]
 
-    # Call the generate_chimeras function with the parsed arguments
-    generate_chimeras(input_fastq, output_fastq, chimera_info_file, num_chimeras)
-
+    input_files = [os.path.join(input_directory, file) for file in os.listdir(input_directory) if file.endswith(".fasta")]
+    
+    generate_chimeras(selected_input_file, input_files, output_fasta, chimera_info_file)
