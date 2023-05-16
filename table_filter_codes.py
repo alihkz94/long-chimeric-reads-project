@@ -21,9 +21,9 @@ filtered_df.to_csv('filtered_file.csv', index=False, header=False)
 
 import csv
 
-fasta_file_path = "input.fasta"
-csv_file_path = "input.csv"
-output_file_path = "output.fasta"
+fasta_file_path = "fungi.fasta"
+csv_file_path = "fasta.csv"
+output_file_path = "fungal_species.fasta"
 
 # Load the CSV table into a dictionary
 species_dict = {}
@@ -36,16 +36,16 @@ with open(csv_file_path, "r") as csv_file:
 
 # Process the FASTA file and create the new file with updated headers
 with open(fasta_file_path, "r") as fasta_file, open(output_file_path, "w") as output_file:
+    current_header = None
     for line in fasta_file:
         if line.startswith(">"):
             fasta_header = line.strip()[1:]
             if fasta_header in species_dict:
+                current_header = fasta_header
                 species_name = species_dict[fasta_header]
                 new_header = f">{fasta_header}|{species_name}\n"
                 output_file.write(new_header)
             else:
-                output_file.write(line)
-        else:
+                current_header = None
+        elif current_header is not None:
             output_file.write(line)
-
-
