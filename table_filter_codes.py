@@ -15,3 +15,37 @@ filtered_df = df[df.notnull().all(axis=1)]
 filtered_df.to_csv('filtered_file.csv', index=False, header=False)
 
 
+
+
+##Generate FASTA files with species names on it: 
+
+import csv
+
+fasta_file_path = "input.fasta"
+csv_file_path = "input.csv"
+output_file_path = "output.fasta"
+
+# Load the CSV table into a dictionary
+species_dict = {}
+with open(csv_file_path, "r") as csv_file:
+    reader = csv.reader(csv_file)
+    for row in reader:
+        fasta_header = row[0]
+        species_name = row[1]
+        species_dict[fasta_header] = species_name
+
+# Process the FASTA file and create the new file with updated headers
+with open(fasta_file_path, "r") as fasta_file, open(output_file_path, "w") as output_file:
+    for line in fasta_file:
+        if line.startswith(">"):
+            fasta_header = line.strip()[1:]
+            if fasta_header in species_dict:
+                species_name = species_dict[fasta_header]
+                new_header = f">{fasta_header}|{species_name}\n"
+                output_file.write(new_header)
+            else:
+                output_file.write(line)
+        else:
+            output_file.write(line)
+
+
