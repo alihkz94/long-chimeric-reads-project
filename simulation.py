@@ -40,3 +40,56 @@ for i in range(len(lengths)):
     
     # delete the temporary fasta file
     os.remove(temp_file_name)
+    
+                    
+    
+###### RUN WITH MULTIPROCCESSOR #####
+import os
+from Bio import SeqIO
+import numpy as np
+import pandas as pd
+from multiprocessing import Pool
+        
+# Load the fasta file
+fasta_sequences = list(SeqIO.parse(open("ITS.fasta"), 'fasta'))
+
+# Get lengths of sequences and species names for later use
+lengths = []
+species_names = []
+
+for fasta in fasta_sequences:
+    name, sequence = fasta.id, str(fasta.seq)
+    lengths.append(len(sequence))
+
+    # Get species name from header
+    species_name = name.split("|")[-1].replace(" ", "_")
+    species_names.append(species_name)
+
+# Sort lengths and species names based on the lengths
+sorted_indices = np.argsort(lengths)
+lengths = np.array(lengths)[sorted_indices]
+species_names = np.array(species_names)[sorted_indices]
+
+# Generate values for simlord -n parameter
+values = np.linspace(1000, 10000, num=len(lengths), dtype=int)
+
+# Create a dataframe to store the results
+df = pd.DataFrame(columns=['File', 'Number of Sequences'])
+
+
+def run_simlord_task(args):
+    i, temp_file_name, value, new_file_name = args
+    # Generate temp fasta file
+    with open(temp_file_name, "w") as temp_file:
+        SeqIO.write(fasta_sequences[sorted_indices[i]], temp_file, "fasta")
+
+    # Run the simlord command
+    os.system(f"simlord -n {value} --read-reference {temp_file_name} {new_file_name} --max-passes 30")
+
+
+# Prepare the arguments for the tasks
+task_args = [(i, f"temp_{species_names[i]}.fasta", values[i], species_names[i]) for i in range(len(lengths))]
+
+# Create a pool and run the tasks
+with Pool() as pool:
+    pool.map(run_simlord_task, task_args)
