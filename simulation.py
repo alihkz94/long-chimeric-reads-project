@@ -47,7 +47,7 @@ for i in range(len(lengths)):
 
 
 
-#To check the number of sequences:
+#To check the number of sequences and generate a table for it:
  
 folder_path = '/home/ali/Documents/simulated_data/fasta_generation/simluate_fasta'
 output_csv = '/home/ali/Documents/simulated_data/fasta_generation/num_seq_ITS.csv'
