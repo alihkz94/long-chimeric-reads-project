@@ -43,3 +43,35 @@ for i in range(len(lengths)):
 
     # delete the temporary fasta file
     os.remove(temp_file_name)
+
+
+
+
+#To check the number of sequences:
+ 
+folder_path = '/home/ali/Documents/simulated_data/fasta_generation/simluate_fasta'
+output_csv = '/home/ali/Documents/simulated_data/fasta_generation/num_seq_ITS.csv'
+
+# List all files in the folder
+file_list = os.listdir(folder_path)
+
+# Initialize the list to store file names and sequence counts
+data = [['File Name', 'Sequence Count']]
+
+# Process each file
+for file_name in file_list:
+    # Check if the file is a FASTQ file
+    if file_name.endswith('.fastq'):
+        file_path = os.path.join(folder_path, file_name)
+        
+        # Count the number of sequences in the file
+        seq_count = sum(1 for _ in SeqIO.parse(file_path, 'fastq'))
+        
+        # Add the file name and sequence count to the data list
+        data.append([file_name, seq_count])
+
+# Write the data to a CSV file
+with open(output_csv, 'w', newline='') as csvfile:
+    writer = csv.writer(csvfile)
+    writer.writerows(data)
+print('CSV table generated successfully.')
