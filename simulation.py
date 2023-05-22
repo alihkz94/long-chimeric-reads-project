@@ -1,6 +1,10 @@
 import os
+import sys
 from Bio import SeqIO
 import numpy as np
+import pandas as pd
+import csv
+
 
 #load the fasta file
 fasta_sequences = list(SeqIO.parse(open("ITS.fasta"),'fasta'))
@@ -8,28 +12,31 @@ fasta_sequences = list(SeqIO.parse(open("ITS.fasta"),'fasta'))
 # get lengths of sequences and species names for later use
 lengths = []
 species_names = []
+values = []
 
-for fasta in fasta_sequences:
+for i, fasta in enumerate(fasta_sequences):
     name, sequence = fasta.id, str(fasta.seq)
     lengths.append(len(sequence))
     
     # get species name from header
-    species_name = name.split("|")[-1].replace(" ", "_")
-    species_names.append(species_name)
+    species_name = "_".join(name.split("|")[1:]).replace(" ", "_")
+    species_names.append(f"{species_name}_{i}")
 
-# sort lengths and species names based on the lengths
+    # generate value for simlord -n parameter
+    value = int(1000 + ((9000 / (len(fasta_sequences) - 1)) * i))
+    values.append(value)
+
+# sort lengths, species names and values based on the lengths
 sorted_indices = np.argsort(lengths)
 lengths = np.array(lengths)[sorted_indices]
 species_names = np.array(species_names)[sorted_indices]
-
-# generate values for simlord -n parameter
-values = np.linspace(1000, 10000, num=len(lengths), dtype=int)
+values = np.array(values)[sorted_indices]
 
 # create a dataframe to store the results
 df = pd.DataFrame(columns=['File', 'Number of Sequences'])
 
 # iterate over each sequence and run the simlord command
-for i in range(len(lengths)):
+for i in range(len(fasta_sequences)):
     temp_file_name = f"temp_{species_names[i]}.fasta"
     new_file_name = species_names[i]
     value = values[i]
@@ -43,8 +50,6 @@ for i in range(len(lengths)):
 
     # delete the temporary fasta file
     os.remove(temp_file_name)
-
-
 
 
 #To check the number of sequences and generate a table for it:
