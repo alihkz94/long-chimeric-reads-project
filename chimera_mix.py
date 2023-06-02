@@ -1,10 +1,10 @@
 import os
 import random
 import sys
+import pandas as pd
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-
 
 def generate_chimeras(selected_input_file, input_files, output_file, chimera_info_file, chimera_id_prefix="chimera"):
     records = []
@@ -24,7 +24,7 @@ def generate_chimeras(selected_input_file, input_files, output_file, chimera_inf
     original_ratios = calculate_abundance_ratio(main_records)
 
     with open(chimera_info_file, "w") as chimera_info_handle:
-        chimera_info_handle.write("chimera_id\tseq1_id\tseq2_id\tbreakpoint\treversed\tratio\n")
+        chimera_info_handle.write("chimera_id\tseq1_id\tseq2_id\tbreakpoint\treversed\tratio\tlength\n")
 
         i = 0
         while i < num_chimeras:
@@ -52,10 +52,10 @@ def generate_chimeras(selected_input_file, input_files, output_file, chimera_inf
 
             # Calculate the chimera ratio such that the parent ratio is 1.5 to 10 times greater
             min_ratio = 0.1  # minimum value for the chimera ratio
-            max_ratio = original_ratios[seq1.id] / 1.5  # maximum value for the chimera ratio
-            ratio = random.uniform(min_ratio, min(max_ratio, 10))  # Select a ratio within the allowed range
+            max_ratio = min(original_ratios[seq1.id] * 10, 1)  # maximum value for the chimera ratio
+            ratio = random.uniform(min_ratio, max_ratio)  # Select a ratio within the allowed range
 
-            chimera_info_handle.write(f"{chimera_id}\t{seq1.id}\t{seq2.id}\t{breakpoint}\t{reversed_status}\t{ratio}\n")
+            chimera_info_handle.write(f"{chimera_id}\t{seq1.id}\t{seq2.id}\t{breakpoint}\t{reversed_status}\t{ratio}\t{len(chimera_seq)}\n")
 
             i += 1
 
@@ -65,9 +65,10 @@ def generate_chimeras(selected_input_file, input_files, output_file, chimera_inf
         main_records.insert(position, chimera)
 
     # Write the output file with chimeric reads
+    output_directory = os.path.dirname(output_file)
+    os.makedirs(output_directory, exist_ok=True)
     with open(output_file, "w") as output_handle:
         SeqIO.write(main_records, output_handle, "fasta")
-
 
 def calculate_abundance_ratio(records):
     abundance_ratios = {}
@@ -78,9 +79,8 @@ def calculate_abundance_ratio(records):
 
     for seq_id, count in abundance_ratios.items():
         abundance_ratios[seq_id] = count / total_reads
-    
-    return abundance_ratios
 
+    return abundance_ratios
 
 # Main function to execute the script
 if __name__ == "__main__":
