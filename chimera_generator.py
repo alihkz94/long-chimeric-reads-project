@@ -6,6 +6,15 @@ from Bio.SeqRecord import SeqRecord  # class for representing a sequence record
 
 
 def generate_chimeras(chimera_id_prefix="chimera"):
+    """
+    Generate chimeric reads from input FASTA files.
+
+    Args:
+        chimera_id_prefix (str): Prefix for the chimera IDs.
+
+    Returns:
+        None
+    """
     input_directory = os.getcwd()  # get the current working directory
     output_directory = os.path.join(input_directory, "chimeric_reads")  # create the output directory path
     chimera_info_file = os.path.join(output_directory, "chimera_info.tsv")  # create the chimera information file path
@@ -45,8 +54,8 @@ def generate_chimeras(chimera_id_prefix="chimera"):
                 seq1_rec, seq1_file = seq1
                 seq2_rec, seq2_file = seq2
 
-                if seq1_rec.id not in original_ratios:  # skip the iteration if seq1 is not present in the original ratios
-                    continue
+                if seq1_rec.id not in original_ratios:
+                    continue  # skip the iteration if seq1 is not present in the original ratios
 
                 breakpoint = random.randint(1, len(seq1_rec) - 1)  # generate a random breakpoint position between seq1 and seq2
                 chimera_seq = seq1_rec.seq[:breakpoint] + seq2_rec.seq[breakpoint:]  # create the chimera sequence by combining the sequences at the breakpoint
@@ -82,6 +91,15 @@ def generate_chimeras(chimera_id_prefix="chimera"):
 
 
 def calculate_abundance_ratio(records):
+    """
+    Calculate the abundance ratio for each sequence ID in the records.
+
+    Args:
+        records (list): List of sequence records.
+
+    Returns:
+        dict: Dictionary containing the abundance ratio for each sequence ID.
+    """
     abundance_ratios = {}  # dictionary to store the abundance ratios
     total_reads = len(records)  # calculate the total number of reads
 
