@@ -13,15 +13,14 @@ def generate_chimeras(chimera_id_prefix="chimera"):
     if not os.path.exists(output_directory):  # create the output directory if it doesn't exist
         os.makedirs(output_directory)
 
-    input_files = [os.path.join(input_directory, file) for file in os.listdir(input_directory) if
-                   file.endswith(".fasta")]  # get a list of input files in the input directory that end with ".fasta"
+    input_files = [file for file in os.listdir(input_directory) if file.endswith(".fasta")]  # get a list of input files in the input directory that end with ".fasta"
 
     for selected_input_file in input_files:
         records = []
         for input_file in input_files:
-            records.extend([(rec, input_file) for rec in SeqIO.parse(input_file, "fasta")])
+            records.extend([(rec, input_file) for rec in SeqIO.parse(os.path.join(input_directory, input_file), "fasta")])
 
-        main_records = [(rec, selected_input_file) for rec in SeqIO.parse(selected_input_file, "fasta")]
+        main_records = [(rec, selected_input_file) for rec in SeqIO.parse(os.path.join(input_directory, selected_input_file), "fasta")]
         mixed_records = records
 
         total_reads = len(main_records)
@@ -55,10 +54,10 @@ def generate_chimeras(chimera_id_prefix="chimera"):
                 if i < int(num_chimeras * 0.04):
                     chimera_seq = chimera_seq.reverse_complement()  # reverse complement the chimera sequence for a certain percentage of chimeras
 
-                if len(seq1_rec) < 1.5 * len(chimera_seq) or len(seq1_rec) > 10 * len(chimera_seq):  # check the length of the chimera sequence to ensure it falls within a valid range
-                    continue
+                if len(seq1_rec) < 1.5 * len(chimera_seq) or len(seq1_rec) > 10 * len(chimera_seq):
+                    continue  # skip the iteration if the length of seq1 is outside the allowed range for the chimera sequence length
 
-                chimera_id = f"{chimera_id_prefix}_{i}"  # generate the chimera ID using the specified prefix and a unique number
+                chimera_id = f"{chimera_id_prefix}_{i}"  # generate a unique chimera ID using the specified prefix and a number
                 chimera_record = SeqRecord(Seq(str(chimera_seq)), id=chimera_id, description="")  # create a SeqRecord object for the chimera sequence
                 chimeras.append((chimera_record, seq1_file))  # add the chimera record and the origin file of seq1 to the list of chimeras
 
@@ -69,7 +68,7 @@ def generate_chimeras(chimera_id_prefix="chimera"):
                 ratio = random.uniform(min_ratio, min(max_ratio, 10))  # select a ratio within the allowed range
 
                 chimera_info_handle.write(
-                    f"{chimera_id}\t{seq1_rec.id}\t{os.path.basename(seq1_file)}\t{seq2_rec.id}\t{os.path.basename(seq2_file)}\t{breakpoint}\t{reversed_status}\t{ratio}\t{len(chimera_seq)}\n")  # write the chimera information to the chimera info file
+                    f"{chimera_id}\t{seq1_rec.id}\t{seq1_file}\t{seq2_rec.id}\t{seq2_file}\t{breakpoint}\t{reversed_status}\t{ratio}\t{len(chimera_seq)}\n")  # write the chimera information to the chimera info file
 
                 i += 1
 
