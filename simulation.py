@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 import csv
 
-
 #load the fasta file
 fasta_sequences = list(SeqIO.parse(open("ITS.fasta"),'fasta'))
 
@@ -20,10 +19,10 @@ for i, fasta in enumerate(fasta_sequences):
     
     # get species name from header
     species_name = "_".join(name.split("|")[1:]).replace(" ", "_")
-    species_names.append(f"{species_name}_{i}")
+    species_names.append(species_name)
 
     # generate value for simlord -n parameter
-    value = int(1000 + ((9000 / (len(fasta_sequences) - 1)) * i))
+    value = int(100000 + ((400000 / (len(fasta_sequences) - 1)) * i))
     values.append(value)
 
 # sort lengths, species names and values based on the lengths
@@ -32,13 +31,12 @@ lengths = np.array(lengths)[sorted_indices]
 species_names = np.array(species_names)[sorted_indices]
 values = np.array(values)[sorted_indices]
 
-# create a dataframe to store the results
-df = pd.DataFrame(columns=['File', 'Number of Sequences'])
+output_dir = "/home/ali/Documents/simulated_data/analysis/simluation/simlord_out"
 
 # iterate over each sequence and run the simlord command
 for i in range(len(fasta_sequences)):
     temp_file_name = f"temp_{species_names[i]}.fasta"
-    new_file_name = species_names[i]
+    new_file_name = os.path.join(output_dir, species_names[i])
     value = values[i]
     
     # generate temp fasta file
@@ -46,16 +44,15 @@ for i in range(len(fasta_sequences)):
         SeqIO.write(fasta_sequences[sorted_indices[i]], temp_file, "fasta")
     
     # run the simlord command
-    os.system(f"simlord -n {value} --read-reference {temp_file_name} {new_file_name} --max-passes 30")
+    os.system(f"simlord -n {value} --read-reference {temp_file_name} {new_file_name} --no-sam")
 
     # delete the temporary fasta file
     os.remove(temp_file_name)
 
+##### GENERATE REPORT #####
 
-#To check the number of sequences and generate a table for it:
- 
-folder_path = '/home/ali/Documents/simulated_data/fasta_generation/simluate_fasta'
-output_csv = '/home/ali/Documents/simulated_data/fasta_generation/num_seq_ITS.csv'
+folder_path = '/home/ali/Documents/simulated_data/analysis/simluation'
+output_csv = '/home/ali/Documents/simulated_data/analysis/simluation/num_seq_ITS.csv'
 
 # List all files in the folder
 file_list = os.listdir(folder_path)
