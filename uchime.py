@@ -65,7 +65,7 @@ for param, values in parameters.items():
 
         # Parse the chimera_info_file and detected_chimeras_fasta
         chimera_dict = parse_chimera_info('chimera_info.txt')
-       detected_chimeras = parse_detected_chimeras(output_file)
+        detected_chimeras = parse_detected_chimeras(output_file)
 
         # Calculate rates
         tp, fp, tn, fn = calculate_rates(chimera_dict, detected_chimeras, total_non_chimera_reads)
