@@ -66,5 +66,3 @@ print(f"True Positives: {tp}")
 print(f"False Positives: {fp}")
 print(f"True Negatives: {tn}")
 print(f"False Negatives: {fn}")
-
-
