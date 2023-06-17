@@ -46,7 +46,3 @@ for param, values in parameters.items():
         # Save the used parameters to a file
         with open(param_file, "w") as f:
             f.write(f"{param} {value}\n")
-
-# Plot the results
-for param, values in parameters.items():
-    plt.plot(values, results[param], label=param)
