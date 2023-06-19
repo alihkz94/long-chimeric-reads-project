@@ -1,6 +1,7 @@
 import os
 import subprocess
 import matplotlib.pyplot as plt
+import pandas as pd
 
 # Define the parameters
 parameters = {
@@ -11,11 +12,23 @@ parameters = {
     '--mindiv': [0.6, 0.7, 0.8, 0.9]
 }
 
-# Define the input file
+# Define the input and output files
 input_file = 'metabar_uchime_input.fasta'
 
 # Define the base command
-base_cmd = f'vsearch --uchime_denovo {input_file} --abskew 1.5 --nonchimeras'
+base_cmd = f'vsearch --uchime_denovo {input_file} --abskew 2'
+
+def parse_chimera_info(filename):
+    # Define the column names
+    column_names = ["chimera_id", "seq1_id", "seq1_file", "seq2_id", "seq2_file", "breakpoint", "reversed_status", "ratio", "chimera_seq_length"]
+
+    # Load the data
+    data = pd.read_csv(filename, sep="\t", header=None, names=column_names)
+
+    # Convert the DataFrame to a dictionary
+    data_dict = data.to_dict(orient="records")
+
+    return data_dict
 
 # Loop over the parameters
 results = {}
@@ -23,26 +36,28 @@ for param, values in parameters.items():
     results[param] = []
     for value in values:
         # Construct the command
-        output_dir = f"output_{param.replace('--','')}_value_{value}"  # use parameter name and value to create distinct directory names
-        os.makedirs(output_dir, exist_ok=True)  # create the output directory
-        output_file = os.path.join(output_dir, 'output.fasta')
-        param_file = os.path.join(output_dir, 'params.txt')
-        cmd = f'{base_cmd} {output_file} {param} {value}'
-        
+        output_file = f'output_{param}_{value}.fasta'
+        cmd = f'{base_cmd} {param} {value} --nonchimeras {output_file}'
+
         # Run the command
-        print(f"Running command: {cmd}")
-        process = subprocess.run(cmd, shell=True, capture_output=True)
-        
+        process = subprocess.run(cmd, shell=True)
+
         # Parse the output to get the number of chimeras
-        output = process.stdout.decode()
-        try:
-            num_chimeras = int(output.split('\n')[-2].split()[0])
-        except IndexError:
-            num_chimeras = 0  # assign a default value if the expected output is not found
-        
+        chimera_info_file = os.path.join('output_directory', f"chimera_info_{param}_{value}.tsv")
+        if os.path.exists(chimera_info_file):
+            chimera_dict = parse_chimera_info(chimera_info_file)
+            num_chimeras = len(chimera_dict)
+        else:
+            num_chimeras = 0  # If the file does not exist, assume no chimeras were found
+
         # Store the result
         results[param].append(num_chimeras)
-        
-        # Save the used parameters to a file
-        with open(param_file, "w") as f:
-            f.write(f"{param} {value}\n")
+
+# Plot the results
+for param, values in parameters.items():
+    plt.plot(values, results[param], label=param)
+plt.xlabel('Parameter Value')
+plt.ylabel('Number of Chimeras')
+plt.legend()
+plt.title('Effect of VSEARCH Parameters on Chimera Detection')
+plt.savefig('vsearch_results.png')
