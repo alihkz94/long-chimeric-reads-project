@@ -1,5 +1,8 @@
 ####The script is developed for finding out the specifity and senstivity rate of chimeras detected #####
 
+import pandas as pd
+from Bio import SeqIO
+import glob
 import os
 
 # Function to parse the chimera_info_file and store it in a dictionary
