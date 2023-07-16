@@ -1,0 +1,27 @@
+Count: There are 254 sequences in the dataset.
+Mean: The average length of the sequences is approximately 371, and the average breakpoint is about 257.
+Standard deviation (std): The standard deviation, a measure of how spread out the numbers in a data set are, is approximately 67.25 for length and 154.13 for breakpoints. 
+This means that the lengths and breakpoints of the sequences vary quite a bit.
+Min: The shortest sequence length is 267, and the smallest breakpoint is 1.
+25% (1st quartile): 25% of the sequences have a length of 326 or less, and 25% have a breakpoint of 118.25 or less.
+50% (median): The median sequence length is 361.5, and the median breakpoint is 305.5.
+75% (3rd quartile): 75% of the sequences have a length of 399.75 or less, and 75% have a breakpoint of 362.75 or less.
+Max: The longest sequence is 682, and the largest breakpoint is also 682.
+
+
+##For the sequences in the seq1_file column:
+
+The most common file is Camarophyllopsis.full_and_partial.fasta, which appears 5 times.
+The second most common file is Exophiala_moniliae_1.full_and_partial.fasta, Melampsora.full_and_partial.fasta, Cystofilobasidium_lari-marini_1.full_and_partial.fasta, and 
+Ampulloclitocybe.full_and_partial.fasta each appearing 4 times.
+
+##For the sequences in the seq2_file column:
+
+The most common file is Venturia.full_and_partial.fasta, which appears 10 times.
+The second most common file is Arcticomyces.full_and_partial.fasta, which appears 7 times.
+The third most common files are Microbotryum.full_and_partial.fasta, Olpidium.full_and_partial.fasta, and Solicoccozyma.full_and_partial.fasta each appearing 6 times.
+
+
+
+**Most of the sequences have lengths between approximately 300 and 400. There are fewer sequences with lengths outside this range. The distribution is somewhat right-skewed, 
+meaning there are a few sequences with significantly longer lengths.**
