@@ -9,6 +9,13 @@ Min: The shortest sequence length is 267, and the smallest breakpoint is 1.
 Max: The longest sequence is 682, and the largest breakpoint is also 682.
 
 
+In the dataset:
+
+158 sequences are not reversed.
+96 sequences are reversed.
+So, the sequences are more often not reversed than reversed.
+
+
 ##For the sequences in the seq1_file column:
 
 The most common file is Camarophyllopsis.full_and_partial.fasta, which appears 5 times.
@@ -23,5 +30,58 @@ The third most common files are Microbotryum.full_and_partial.fasta, Olpidium.fu
 
 
 
-**Most of the sequences have lengths between approximately 300 and 400. There are fewer sequences with lengths outside this range. The distribution is somewhat right-skewed, 
-meaning there are a few sequences with significantly longer lengths.**
+**Most of the sequences have lengths between approximately 300 and 400. There are fewer sequences with lengths outside this range. 
+The distribution is somewhat right-skewed, meaning there are a few sequences with significantly longer lengths.**
+
+
+
+Here are the top 20 files with the most sequences:
+
+For seq1_file:
+
+Camarophyllopsis.full_and_partial.fasta: 5 sequences
+Exophiala_moniliae_1.full_and_partial.fasta: 4 sequences
+Melampsora.full_and_partial.fasta: 4 sequences
+Cystofilobasidium_lari-marini_1.full_and_partial.fasta: 4 sequences
+Ampulloclitocybe.full_and_partial.fasta: 4 sequences
+Odontochytrium.full_and_partial.fasta: 4 sequences
+Knufia_epidermidis_1.full_and_partial.fasta: 3 sequences
+Cylindrobasidium.full_and_partial.fasta: 3 sequences
+Rhizophydium.full_and_partial.fasta: 3 sequences
+Clavaria.full_and_partial.fasta: 3 sequences
+Geranomyces.full_and_partial.fasta: 3 sequences
+Lactarius.full_and_partial.fasta: 3 sequences
+Circinella.full_and_partial.fasta: 3 sequences
+Devriesia.full_and_partial.fasta: 3 sequences
+Paxillus.full_and_partial.fasta: 3 sequences
+Rhizophlyctis.full_and_partial.fasta: 3 sequences
+Naganishia_vaughanmartiniae_1.full_and_partial.fasta: 3 sequences
+Albatrellus.full_and_partial.fasta: 3 sequences
+Rhizidium.full_and_partial.fasta: 3 sequences
+Hypholoma_capnoides_1.full_and_partial.fasta: 3 sequences
+
+
+For seq2_file:
+
+Venturia.full_and_partial.fasta: 10 sequences
+Arcticomyces.full_and_partial.fasta: 7 sequences
+Microbotryum.full_and_partial.fasta: 6 sequences
+Olpidium.full_and_partial.fasta: 6 sequences
+Solicoccozyma.full_and_partial.fasta: 6 sequences
+Cenococcum.full_and_partial.fasta: 5 sequences
+Candida.full_and_partial.fasta: 5 sequences
+Coralloidiomyces.full_and_partial.fasta: 5 sequences
+Rhodotorula_mucilaginosa_1.full_and_partial.fasta: 5 sequences
+Exidia.full_and_partial.fasta: 4 sequences
+Cystobasidium_psychroaquaticum_1.full_and_partial.fasta: 4 sequences
+Umbelopsis.full_and_partial.fasta: 4 sequences
+Amanita.full_and_partial.fasta: 4 sequences
+Symmetrospora_symmetrica_1.full_and_partial.fasta: 4 sequences
+Cladophialophora.full_and_partial.fasta: 4 sequences
+Devriesia.full_and_partial.fasta: 4 sequences
+Phaeoclavulina.full_and_partial.fasta: 4 sequences
+Hypholoma.full_and_partial.fasta: 4 sequences
+Cystfiloba.full_and_partial.fasta: 4 sequences
+Rhizophydium.full_and_partial.fasta: 3 sequences
+
+
