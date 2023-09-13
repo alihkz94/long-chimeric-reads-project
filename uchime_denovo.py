@@ -1,22 +1,22 @@
 import os
 import subprocess
-import matplotlib.pyplot as plt
 import pandas as pd
+
+# Create tempdir if it doesn't exist
+if not os.path.exists('tempdir'):
+    os.makedirs('tempdir')
 
 # Define the parameters
 parameters = {
-    '--dn': [1.4, 1.5, 1.6, 1.7, 1.8],
     '--mindiffs': [1, 2, 3],
     '--minh': [0.1, 0.2, 0.28],
     '--xn': [6.0, 7.0, 8.0, 9.0],
-    '--mindiv': [0.6, 0.7, 0.8, 0.9]
+    '--abskew': [2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0,16.0]
 }
 
 # Define the input and output files
 input_file = 'metabar_uchime_input.fasta'
-
-# Define the base command
-base_cmd = f'vsearch --uchime_denovo {input_file} --abskew 2'
+id_value = 0.97  # You can modify this as per your requirements
 
 def parse_chimera_info(filename):
     # Define the column names
@@ -30,17 +30,26 @@ def parse_chimera_info(filename):
 
     return data_dict
 
+# Dereplicate and pre-cluster sequences
+dereplicate_cmd = f'vsearch --derep_fulllength {input_file} --sizein --sizeout --fasta_width 0 --output tempdir/{input_file}.derep.fasta'
+precluster_cmd = f'vsearch --cluster_size tempdir/{input_file}.derep.fasta --id {id_value} --sizein --sizeout --fasta_width 0 --centroids tempdir/{input_file}.preclustered.fasta'
+
+# Run the commands
+subprocess.run(dereplicate_cmd, shell=True)
+subprocess.run(precluster_cmd, shell=True)
+
 # Loop over the parameters
 results = {}
 for param, values in parameters.items():
     results[param] = []
     for value in values:
-        # Construct the command
+        # Construct the uchime command
         output_file = f'output_{param}_{value}.fasta'
-        cmd = f'{base_cmd} {param} {value} --nonchimeras {output_file}'
+        uchime_cmd = f'vsearch --uchime_denovo tempdir/{input_file}.preclustered.fasta {param} {value} --sizein --sizeout --fasta_width 0 \
+            --mindiv 0.4 --dn 1.6 --chimeras {output_file}'
 
         # Run the command
-        process = subprocess.run(cmd, shell=True)
+        process = subprocess.run(uchime_cmd, shell=True)
 
         # Parse the output to get the number of chimeras
         chimera_info_file = os.path.join('output_directory', f"chimera_info_{param}_{value}.tsv")
@@ -52,12 +61,3 @@ for param, values in parameters.items():
 
         # Store the result
         results[param].append(num_chimeras)
-
-# Plot the results
-for param, values in parameters.items():
-    plt.plot(values, results[param], label=param)
-plt.xlabel('Parameter Value')
-plt.ylabel('Number of Chimeras')
-plt.legend()
-plt.title('Effect of VSEARCH Parameters on Chimera Detection')
-plt.savefig('vsearch_results.png')
