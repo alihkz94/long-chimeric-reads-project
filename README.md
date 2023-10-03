@@ -15,5 +15,5 @@ vsearch --fastq_filter input_file --fastq_maxee 1 --fastq_maxns 0  --fastq_minle
 9.  UCHIME reference-based chimera filtering ran over the files. 
 
 
-#Best settings 
+## Best settings 
 The best settings that Uchime achieved were with settings --mindiv 0.4 --dn 1.6 --minh 0.08. 
