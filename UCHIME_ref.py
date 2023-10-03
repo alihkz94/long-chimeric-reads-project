@@ -56,12 +56,3 @@ for param, values in parameters.items():
 
         # Store the result
         results[param].append(num_chimeras)
-
-# Plot the results
-for param, values in parameters.items():
-    plt.plot(values, results[param], label=param)
-plt.xlabel('Parameter Value')
-plt.ylabel('Number of Chimeras')
-plt.legend()
-plt.title('Effect of VSEARCH Parameters on Chimera Detection')
-plt.savefig('vsearch_results.png')
