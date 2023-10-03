@@ -14,6 +14,9 @@ def generate_chimeras(chimera_id_prefix="chimera"):
 
     input_files = [file for file in os.listdir(input_directory) if file.endswith(".fasta")]
 
+    # New variable to keep track of chimeric reads that are shorter than 50 bp
+    short_chimeras_count = 0
+
     for selected_input_file in input_files:
         records = []
         for input_file in input_files:
@@ -48,6 +51,14 @@ def generate_chimeras(chimera_id_prefix="chimera"):
 
                 breakpoint = random.randint(1, len(seq1_rec) - 1)
                 chimera_seq = seq1_rec.seq[:breakpoint] + seq2_rec.seq[breakpoint:]
+
+                # New condition to check the length of each component
+                if len(seq1_rec.seq[:breakpoint]) < 50 or len(seq2_rec.seq[breakpoint:]) < 50:
+                    short_chimeras_count += 1
+                    if short_chimeras_count / num_chimeras > 0.1:  # More than 10% are short
+                        continue  # Skip this iteration to maintain the ratio
+                else:
+                    short_chimeras_count = max(0, short_chimeras_count - 1)  # Reset or decrement the counter
 
                 if (i % 25 == 0) and (not last_reverse_status):
                     chimera_seq = chimera_seq.reverse_complement()
