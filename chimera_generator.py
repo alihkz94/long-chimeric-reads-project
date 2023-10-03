@@ -2,8 +2,8 @@
 
 import os
 import random
-from Bio import SeqIO 
-from Bio.Seq import Seq
+from Bio import SeqIO
+from Bio.Seq import Seq 
 from Bio.SeqRecord import SeqRecord
 
 def generate_chimeras(chimera_id_prefix="chimera"):
@@ -21,20 +21,20 @@ def generate_chimeras(chimera_id_prefix="chimera"):
   input_files = [file for file in os.listdir(input_directory) if file.endswith(".fasta")]
 
   # Track short chimeras to avoid too many
-  short_chimeras_count = 0 
+  short_chimeras_count = 0
 
   for selected_input_file in input_files:
-  
-    # Parse all input files
+
+    # Parse all input files 
     records = []
     for input_file in input_files:
       records.extend([(rec, input_file) for rec in SeqIO.parse(os.path.join(input_directory, input_file), "fasta")])
 
     # Parse seqs from selected "main" file
-    main_records = [(rec, selected_input_file) for rec in SeqIO.parse(os.path.join(input_directory, selected_input_file), "fasta")]  
+    main_records = [(rec, selected_input_file) for rec in SeqIO.parse(os.path.join(input_directory, selected_input_file), "fasta")]
     mixed_records = records
 
-    # Determine number of chimeras to generate
+    # Determine number of chimeras to generate 
     total_reads = len(main_records)
     num_chimeras = int(total_reads * random.uniform(0.01, 0.03))
 
@@ -42,19 +42,19 @@ def generate_chimeras(chimera_id_prefix="chimera"):
     original_ratios = calculate_abundance_ratio(main_records)
 
     with open(chimera_info_file, "a") as chimera_info_handle:
-
+    
       # Write header if new file
       if os.path.getsize(chimera_info_file) == 0:
         chimera_info_handle.write("chimera_id\tseq1_id\tseq1_file\tseq2_id\tseq2_file\tbreakpoints\treversed\tratio\tlength\n")
 
       # Generate chimeras
-      i = 0 
-      last_reverse_status = False
+      i = 0
+      last_reverse_status = False  
       while i < num_chimeras:
 
         # Select parent seqs
         if i < int(num_chimeras * 0.1):
-          seq1, seq2 = random.sample(main_records, 2) 
+          seq1, seq2 = random.sample(main_records, 2)
         else:
           seq1, seq2 = random.sample(mixed_records, 2)
 
@@ -73,8 +73,8 @@ def generate_chimeras(chimera_id_prefix="chimera"):
         # Check if chimera components are too short
         if len(seq1_rec.seq[:breakpoint]) < 50 or len(seq2_rec.seq[breakpoint:]) < 50:
           short_chimeras_count += 1
-          if short_chimeras_count / num_chimeras > 0.1:  
-            continue  
+          if short_chimeras_count / num_chimeras > 0.1:
+            continue
         else:
           short_chimeras_count = max(0, short_chimeras_count - 1)
 
@@ -95,8 +95,8 @@ def generate_chimeras(chimera_id_prefix="chimera"):
         chimera_record = SeqRecord(Seq(str(chimera_seq)), id=chimera_id, description="")
         chimeras.append((chimera_record, seq1_file))
 
-        # Calculate abundance 
-        min_ratio = 0.1
+        # Calculate abundance
+        min_ratio = 0.1 
         max_ratio = original_ratios[seq1_rec.id] / 1.5
         ratio = random.uniform(min_ratio, min(max_ratio, 10))
 
@@ -114,7 +114,7 @@ def generate_chimeras(chimera_id_prefix="chimera"):
     with open(output_file, "w") as output_handle:
       SeqIO.write([rec for rec, file in main_records], output_handle, "fasta")
 
-# Calculate original abundance ratios
+# Calculate original abundance ratios  
 def calculate_abundance_ratio(records):
 
   abundance_ratios = {}
