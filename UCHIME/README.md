@@ -1,1 +1,1 @@
-UCHIME-related scripts
+UCHIME-related scripts and files
