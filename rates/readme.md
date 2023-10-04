@@ -28,6 +28,7 @@ Moreover, in the case of Vsearch is also in this way:
 
 Calculated Metrics: {'True Positives': 142, 'False Positives': 0, 'True Negatives': 44470, 'False Negatives': 629, 'Sensitivity': 0.18417639429312582, 'Specificity': 1.0}
 
+## Number of short reads
 
 Number of chimeric reads with one part shorter than 60 bps: 53
 
