@@ -34,7 +34,7 @@ blastn -query combined_chimeras.fasta \
 -db $REFERENCE_DB \
 -task blastn \
 -word_size 7 \
--num_threads 8 \
+-num_threads 12 \
 -outfmt "6 delim=+ qseqid stitle qlen slen qstart qend sstart send evalue length nident mismatch gapopen gaps sstrand qcovs pident" \
 -evalue 0.001 \
 -strand both \
