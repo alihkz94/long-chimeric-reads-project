@@ -32,19 +32,14 @@ cat denovo_chimeras.fasta ref_chimeras.fasta > combined_chimeras.fasta
 
 blastn -query combined_chimeras.fasta \
 -db $REFERENCE_DB \
+-task blastn \
 -word_size 7 \
 -num_threads 8 \
 -outfmt "6 delim=+ qseqid stitle qlen slen qstart qend sstart send evalue length nident mismatch gapopen gaps sstrand qcovs pident" \
 -evalue 0.001 \
 -strand both \
 -max_target_seqs 10 \
--max_hsps 2 \
--dust no \
--soft_masking true \
--penalty -1 \
--reward 1 \
--gapopen 1 \
--gapextend 2 \
+-max_hsps 1 \
 -out combined_chimeras_blast_results.txt
 
 # Define a threshold for percentage identity. Sequences above this threshold are considered true non-chimeric.
