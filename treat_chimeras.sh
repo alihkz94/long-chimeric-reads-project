@@ -11,7 +11,7 @@ set -e # Exit on error
 
 # Input: FASTA file for chimera filtering
 INPUT_FILE="/gpfs/space/home/alihakim/analysis/treat_chimera/metabar_uchime_input.fasta"
-REFERENCE_DB="/gpfs/space/home/alihakim/analysis/treat_chimera/ITS.fasta"  # Modify this to the path of your reference database for BLAST
+REFERENCE_DB="/gpfs/space/home/alihakim/analysis/treat_chimera/ITS.fasta"
 
 # 1. Pre-dereplication
 echo "Pre-dereplication..."
@@ -32,15 +32,20 @@ vsearch --uchime_ref denovo_nonchimeras.fasta --mindiv 0.4 --dn 1.6 --minh 0.01 
 --db $REFERENCE_DB \
 --nonchimeras ref_nonchimeras.fasta --chimeras ref_chimeras.fasta
 
-# 5. BLAST Analysis for Flagged Chimeric Sequences
-echo "BLAST analysis for flagged chimeric sequences..."
-
-# Combine chimeric sequences from both UCHIME Denovo and UCHIME Ref
+# 5. Combine chimeric sequences
+echo "Combining chimeric sequences..."
 cat denovo_chimeras.fasta ref_chimeras.fasta > combined_chimeras.fasta
 
+# 6. Reverse complement all sequences
+echo "Reverse complementing sequences..."
+seqkit seq -r combined_chimeras.fasta > combined_chimeras_reversed.fasta
+
+# 7. BLAST Analysis for Flagged Chimeric Sequences (Original and Reversed)
+echo "BLAST analysis for flagged chimeric sequences..."
 blastn -query combined_chimeras.fasta \
 -db /gpfs/space/home/alihakim/analysis/databse/UNITE  \
 -word_size 7 \
+-task blastn \
 -num_threads 128 \
 -outfmt "6 delim=+ qseqid stitle qlen slen qstart qend sstart send evalue length nident mismatch gapopen gaps sstrand qcovs pident" \
 -evalue 0.001 \
@@ -49,15 +54,30 @@ blastn -query combined_chimeras.fasta \
 -max_hsps 1 \
 -out combined_chimeras_blast_results.txt
 
-# Define a threshold for percentage identity. Sequences above this threshold are considered true non-chimeric.
-PIDENT_THRESHOLD=90  # Adjust based on your dataset and requirements.
+blastn -query combined_chimeras_reversed.fasta \
+-db /gpfs/space/home/alihakim/analysis/databse/UNITE  \
+-word_size 7 \
+-task blastn \
+-num_threads 128 \
+-outfmt "6 delim=+ qseqid stitle qlen slen qstart qend sstart send evalue length nident mismatch gapopen gaps sstrand qcovs pident" \
+-evalue 0.001 \
+-strand both \
+-max_target_seqs 10 \
+-max_hsps 1 \
+-out combined_chimeras_reversed_blast_results.txt
 
-awk -F'+' -v threshold="$PIDENT_THRESHOLD" '{ if ($15 >= threshold) print $1 }' combined_chimeras_blast_results.txt > true_non_chimeras.txt
+# 8. Additional Filtering Steps
+PIDENT_THRESHOLD=90
+QC_THRESHOLD=90
 
-# Extract true non-chimeric sequences from the flagged chimeric ones
+awk -F'+' -v pident="$PIDENT_THRESHOLD" -v qc="$QC_THRESHOLD" '{ if ($15 >= pident && $14 >= qc) print $1 }' combined_chimeras_blast_results.txt > true_non_chimeras.txt
+awk -F'+' -v pident="$PIDENT_THRESHOLD" -v qc="$QC_THRESHOLD" '{ if ($15 >= pident && $14 >= qc) print $1 }' combined_chimeras_reversed_blast_results.txt > true_non_chimeras_reversed.txt
+
+# 9. Extract true non-chimeric sequences
 seqkit grep -f true_non_chimeras.txt combined_chimeras.fasta > retrieved_non_chimeras.fasta
+seqkit grep -f true_non_chimeras_reversed.txt combined_chimeras_reversed.fasta > retrieved_non_chimeras_reversed.fasta
 
-# Combine the retrieved non-chimeric sequences with the initial non-chimeric sequences
-cat ref_nonchimeras.fasta retrieved_non_chimeras.fasta > final_non_chimeric_sequences.fasta
+# 10. Combine the retrieved non-chimeric sequences
+cat ref_nonchimeras.fasta retrieved_non_chimeras.fasta retrieved_non_chimeras_reversed.fasta > final_non_chimeric_sequences.fasta
 
 echo "Chimera filtering module completed!"
