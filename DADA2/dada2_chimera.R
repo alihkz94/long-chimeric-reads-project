@@ -5,50 +5,64 @@ library(Rcpp)
 library(dada2)
 library(ShortRead)
 library(tibble)
+library(Biostrings)
 setwd("~/Documents/simulated_data/analysis/DADA2")
+# Function to read fasta sequences into a named vector
+read_fasta_to_vector <- function(fasta_file) {
+  fasta_seqs <- readDNAStringSet(fasta_file)
+  return(setNames(as.character(fasta_seqs), names(fasta_seqs)))
+}
 
-# Read in sequence table
+# Read in the sequence table
 seqtab <- read.csv("chimeric_sequence_table.csv", stringsAsFactors = FALSE)
 
-# Convert to matrix format
+# Convert to matrix format similar to your original script
 seqtab_matrix <- matrix(seqtab$Frequency, nrow=nrow(seqtab), ncol=1, 
                         dimnames=list(seqtab$Sequence, "Sample1"))
 
+# Read in the table of known chimeric sequences (from fasta)
+known_chimeras <- read_fasta_to_vector("metabar_uchime_input.fasta")
+
+# Initialize a ground truth vector
+ground_truth <- ifelse(seqtab$Sequence %in% known_chimeras, 1, 0)
+
 # List of options to test, tailored for PacBio
 options_list <- list(
-  list(minFoldParentOverAbundance = 1.5, minParentAbundance = 5, allowOneOff = TRUE, minOneOffParentDistance = 6, maxShift = 50),
   list(minFoldParentOverAbundance = 2, minParentAbundance = 10, allowOneOff = TRUE, minOneOffParentDistance = 6, maxShift = 100),
-  list(minFoldParentOverAbundance = 1, minParentAbundance = 8, allowOneOff = TRUE, minOneOffParentDistance = 4, maxShift = 16)
+  list(minFoldParentOverAbundance = 2.5, minParentAbundance = 10, allowOneOff = TRUE, minOneOffParentDistance = 6, maxShift = 100),
+  list(minFoldParentOverAbundance = 3, minParentAbundance = 10, allowOneOff = TRUE, minOneOffParentDistance = 6, maxShift = 100),
+  list(minFoldParentOverAbundance = 2, minParentAbundance = 15, allowOneOff = TRUE, minOneOffParentDistance = 6, maxShift = 100),
+  list(minFoldParentOverAbundance = 2, minParentAbundance = 20, allowOneOff = TRUE, minOneOffParentDistance = 6, maxShift = 100),
+  list(minFoldParentOverAbundance = 2, minParentAbundance = 10, allowOneOff = TRUE, minOneOffParentDistance = 6, maxShift = 150),
+  list(minFoldParentOverAbundance = 2, minParentAbundance = 10, allowOneOff = TRUE, minOneOffParentDistance = 6, maxShift = 200),
+  list(minFoldParentOverAbundance = 2, minParentAbundance = 10, allowOneOff = TRUE, minOneOffParentDistance = 7, maxShift = 100),
+  list(minFoldParentOverAbundance = 2, minParentAbundance = 10, allowOneOff = TRUE, minOneOffParentDistance = 8, maxShift = 100)
 )
 
 # Initialize a data frame to store metrics
 metrics_df <- tibble()
 
-# Loop through options and perform chimera detection
+# Loop through options and perform chimera removal
 for (opts in options_list) {
-  chimera <- isBimeraDenovo(t(seqtab_matrix),
-                            minFoldParentOverAbundance = opts$minFoldParentOverAbundance,
-                            minParentAbundance = opts$minParentAbundance,
-                            allowOneOff = opts$allowOneOff,
-                            minOneOffParentDistance = opts$minOneOffParentDistance,
-                            maxShift = opts$maxShift,
-                            multithread=TRUE, verbose = TRUE)
+  cleaned_seqtab_matrix <- removeBimeraDenovo(t(seqtab_matrix),
+                                              minFoldParentOverAbundance = opts$minFoldParentOverAbundance,
+                                              minParentAbundance = opts$minParentAbundance,
+                                              allowOneOff = opts$allowOneOff,
+                                              minOneOffParentDistance = opts$minOneOffParentDistance,
+                                              maxShift = opts$maxShift,
+                                              multithread=TRUE, verbose = TRUE)
   
-  # Extract chimeric sequences
-  Chimeric_sequences <- seqtab[chimera,]
+  # Identify removed chimeric sequences
+  removed_seqs <- rownames(seqtab_matrix)[!rownames(seqtab_matrix) %in% rownames(t(cleaned_seqtab_matrix))]
   
-  # Save results for further analysis
-  output_file <- paste0("Chimeric_sequences_", paste(unlist(opts), collapse = "_"), ".csv")
-  write.csv(Chimeric_sequences, output_file)
-  
-  # Assume you have a ground truth vector 'ground_truth' where 1 means chimera and 0 means non-chimera
-  # ground_truth <- c(1, 0, 1, 0, ...)
+  # Create a binary vector where 1 means the sequence was removed
+  removed_binary <- ifelse(seqtab$Sequence %in% removed_seqs, 1, 0)
   
   # Calculate TP, FP, TN, FN
-  TP <- sum(chimera & ground_truth)
-  FP <- sum(chimera & !ground_truth)
-  TN <- sum(!chimera & !ground_truth)
-  FN <- sum(!chimera & ground_truth)
+  TP <- sum(removed_binary & ground_truth)
+  FP <- sum(removed_binary & !ground_truth)
+  TN <- sum(!removed_binary & !ground_truth)
+  FN <- sum(!removed_binary & ground_truth)
   
   # Calculate Sensitivity and Specificity
   Sensitivity <- TP / (TP + FN)
