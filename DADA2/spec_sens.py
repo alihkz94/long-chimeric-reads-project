@@ -65,3 +65,12 @@ print(f"F1 Score: {f1_score}")
 cm = confusion_matrix(y_true, y_pred)
 print("Confusion Matrix:")
 print(cm)
+
+
+#True Positives (TP): These are sequences that are correctly identified as chimeric by the DADA2 algorithm and are actually chimeric according to the ground truth (metabar_uchime_input.fasta).
+
+#False Positives (FP): These are sequences that are incorrectly identified as chimeric by DADA2 but are actually non-chimeric according to the ground truth.
+
+#True Negatives (TN): These are sequences that are correctly identified as non-chimeric by DADA2 and are actually non-chimeric according to the ground truth.
+
+#False Negatives (FN): These are sequences that are incorrectly identified as non-chimeric by DADA2 but are actually chimeric according to the ground truth
