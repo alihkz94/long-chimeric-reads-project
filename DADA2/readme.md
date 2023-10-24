@@ -6,7 +6,8 @@ The best settings for the DADA2 for simulated dataset was with :
 minParentAbundance = 2, allowOneOff = TRUE, minOneOffParentDistance = 2, maxShift = 300),
 `
 ## The results obtained based on these options:  
-`True Positives: 623
+
+True Positives: 623
 False Positives: 6013
 True Negatives: 38457
 False Negatives: 148
@@ -17,4 +18,4 @@ Recall: 0.808041504539559
 F1 Score: 0.16821925205886326
 Confusion Matrix:
 [[38457  6013]
- [  148   623]]`
+ [  148   623]]
