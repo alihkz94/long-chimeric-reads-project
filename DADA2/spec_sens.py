@@ -1,6 +1,8 @@
 from Bio import SeqIO
-from sklearn.metrics import confusion_matrix
 from sklearn.metrics import precision_recall_fscore_support
+import pandas as pd
+import glob
+import concurrent.futures
 
 # Function to handle duplicate keys
 def handle_duplicate_keys(record_iter):
@@ -15,62 +17,61 @@ def handle_duplicate_keys(record_iter):
         record.id = key
         yield record
 
-# Read metabar FASTA file
+# Initialize DataFrame to store results
+df = pd.DataFrame(columns=['File', 'True Positives', 'False Positives', 'True Negatives', 'False Negatives', 'Sensitivity', 'Specificity', 'Precision', 'Recall', 'F1 Score'])
+
+# Read metabar FASTA file once
 metabar_dict = SeqIO.to_dict(handle_duplicate_keys(SeqIO.parse("metabar_uchime_input.fasta", "fasta")))
 
-# Read removed chimeric sequences
-with open("removed_chimeric_sequences_8.txt", 'r') as f:
-    removed_seqs = f.read().splitlines()
-
-# Initialize counts
-TP = 0  # True Positives
-FP = 0  # False Positives
-TN = 0  # True Negatives
-FN = 0  # False Negatives
-
-# Calculate TP, FP, TN, FN
-for seq_id, sequence in metabar_dict.items():
-    if sequence.seq in removed_seqs:
-        if "chimera" in seq_id:
-            TP += 1
+# Function to process each file
+def process_file(filepath):
+    # Initialize counts
+    TP, FP, TN, FN = 0, 0, 0, 0
+    
+    # Read removed chimeric sequences from current file and convert to set for fast look-up
+    with open(filepath, 'r') as f:
+        removed_seqs = set(f.read().splitlines())
+    
+    # Calculate TP, FP, TN, FN
+    for seq_id, sequence in metabar_dict.items():
+        if sequence.seq in removed_seqs:
+            if "chimera" in seq_id:
+                TP += 1
+            else:
+                FP += 1
         else:
-            FP += 1
-    else:
-        if "chimera" in seq_id:
-            FN += 1
-        else:
-            TN += 1
+            if "chimera" in seq_id:
+                FN += 1
+            else:
+                TN += 1
+    
+    # Compute metrics
+    sensitivity = TP / (TP + FN)
+    specificity = TN / (TN + FP)
+    y_true = [1]*TP + [0]*FP + [1]*FN + [0]*TN
+    y_pred = [1]*(TP + FP) + [0]*(FN + TN)
+    precision, recall, f1_score, _ = precision_recall_fscore_support(y_true, y_pred, average='binary')
+    
+    return {
+        'File': filepath,
+        'True Positives': TP,
+        'False Positives': FP,
+        'True Negatives': TN,
+        'False Negatives': FN,
+        'Sensitivity': sensitivity,
+        'Specificity': specificity,
+        'Precision': precision,
+        'Recall': recall,
+        'F1 Score': f1_score
+    }
 
-# Calculate Sensitivity and Specificity
-sensitivity = TP / (TP + FN)
-specificity = TN / (TN + FP)
+# Parallel processing of files
+with concurrent.futures.ThreadPoolExecutor() as executor:
+    results = list(executor.map(process_file, glob.glob("removed_chimeric_sequences_*.txt")))
 
-print(f"True Positives: {TP}")
-print(f"False Positives: {FP}")
-print(f"True Negatives: {TN}")
-print(f"False Negatives: {FN}")
-print(f"Sensitivity: {sensitivity}")
-print(f"Specificity: {specificity}")
+# Add results to DataFrame
+for result in results:
+    df = df.append(result, ignore_index=True)
 
-# Use scikit-learn to calculate precision, recall, and F1-score
-y_true = [1]*TP + [0]*FP + [1]*FN + [0]*TN
-y_pred = [1]*(TP + FP) + [0]*(FN + TN)
-precision, recall, f1_score, _ = precision_recall_fscore_support(y_true, y_pred, average='binary')
-
-print(f"Precision: {precision}")
-print(f"Recall: {recall}")
-print(f"F1 Score: {f1_score}")
-
-# Confusion Matrix
-cm = confusion_matrix(y_true, y_pred)
-print("Confusion Matrix:")
-print(cm)
-
-
-#True Positives (TP): These are sequences that are correctly identified as chimeric by the DADA2 algorithm and are actually chimeric according to the ground truth (metabar_uchime_input.fasta).
-
-#False Positives (FP): These are sequences that are incorrectly identified as chimeric by DADA2 but are actually non-chimeric according to the ground truth.
-
-#True Negatives (TN): These are sequences that are correctly identified as non-chimeric by DADA2 and are actually non-chimeric according to the ground truth.
-
-#False Negatives (FN): These are sequences that are incorrectly identified as non-chimeric by DADA2 but are actually chimeric according to the ground truth
+# Save DataFrame as a CSV file for the final report
+df.to_csv("final_report.csv", index=False)
