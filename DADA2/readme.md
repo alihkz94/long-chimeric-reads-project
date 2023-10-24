@@ -1,30 +1,27 @@
 ## OPTIMUM SETTINGS
 
-The best settings for the DADA2 for simulated dataset was with : 
+The best settings for the DADA2 for the simulated dataset were with : 
 
 `list(minSampleFraction = 0.9, ignoreNNegatives = 1, minFoldParentOverAbundance = 1.5, 
-minParentAbundance = 2, allowOneOff = TRUE, minOneOffParentDistance = 2, maxShift = 300),
+minParentAbundance = 2, allowOneOff = TRUE, minOneOffParentDistance = 2, maxShift = 350),
 `
 ## The results obtained based on these options:  
 
-True Positives: 623
+True Positives: 622
 
-False Positives: 6013
+False Positives: 5986
 
-True Negatives: 38457
+True Negatives: 38484
 
-False Negatives: 148
+False Negatives: 149
 
-Sensitivity: 0.808041504539559
+Sensitivity: 0.80674448767834
 
-Specificity: 0.8647852484821228
+Specificity: 0.865392399370362 
 
-Precision: 0.0938818565400844
+Precision: 0.0941283292978208
 
-Recall: 0.808041504539559
+Recall: 0.80674448767834 
 
-F1 Score: 0.16821925205886326
+F1 Score: 0.168586529340019
 
-Confusion Matrix:
-[[38457  6013]
- [  148   623]]
