@@ -1,10 +1,9 @@
-from Bio import SeqIO
-from sklearn.metrics import precision_recall_fscore_support
-import pandas as pd
+import os
 import glob
+from Bio import SeqIO
 import concurrent.futures
 
-# Function to handle duplicate keys
+# Function to handle duplicate keys (from your previous script)
 def handle_duplicate_keys(record_iter):
     counts = {}
     for record in record_iter:
@@ -17,61 +16,34 @@ def handle_duplicate_keys(record_iter):
         record.id = key
         yield record
 
-# Initialize DataFrame to store results
-df = pd.DataFrame(columns=['File', 'True Positives', 'False Positives', 'True Negatives', 'False Negatives', 'Sensitivity', 'Specificity', 'Precision', 'Recall', 'F1 Score'])
+# Create a directory to store the new FASTA files
+if not os.path.exists('fasta_files'):
+    os.makedirs('fasta_files')
 
-# Read metabar FASTA file once
+# Read metabar FASTA file once, handling duplicate keys
 metabar_dict = SeqIO.to_dict(handle_duplicate_keys(SeqIO.parse("metabar_uchime_input.fasta", "fasta")))
 
-# Function to process each file
-def process_file(filepath):
-    # Initialize counts
-    TP, FP, TN, FN = 0, 0, 0, 0
+# Function to process each removed chimeric sequences file
+def process_removed_file(filepath):
+    # Initialize a list to store new FASTA records
+    new_fasta_records = []
     
-    # Read removed chimeric sequences from current file and convert to set for fast look-up
+    # Read the sequences in the current removed_chimeric_sequences file
     with open(filepath, 'r') as f:
         removed_seqs = set(f.read().splitlines())
     
-    # Calculate TP, FP, TN, FN
+    # Map each removed sequence to its original header and sequence in the metabar FASTA file
     for seq_id, sequence in metabar_dict.items():
         if sequence.seq in removed_seqs:
-            if "chimera" in seq_id:
-                TP += 1
-            else:
-                FP += 1
-        else:
-            if "chimera" in seq_id:
-                FN += 1
-            else:
-                TN += 1
+            new_fasta_records.append((seq_id, str(sequence.seq)))
     
-    # Compute metrics
-    sensitivity = TP / (TP + FN)
-    specificity = TN / (TN + FP)
-    y_true = [1]*TP + [0]*FP + [1]*FN + [0]*TN
-    y_pred = [1]*(TP + FP) + [0]*(FN + TN)
-    precision, recall, f1_score, _ = precision_recall_fscore_support(y_true, y_pred, average='binary')
+    # Write the new FASTA records to a file in the 'fasta_files' directory
+    output_filepath = os.path.join('fasta_files', os.path.basename(filepath).replace('.txt', '.fasta'))
     
-    return {
-        'File': filepath,
-        'True Positives': TP,
-        'False Positives': FP,
-        'True Negatives': TN,
-        'False Negatives': FN,
-        'Sensitivity': sensitivity,
-        'Specificity': specificity,
-        'Precision': precision,
-        'Recall': recall,
-        'F1 Score': f1_score
-    }
+    with open(output_filepath, 'w') as f:
+        for seq_id, seq in new_fasta_records:
+            f.write(f">{seq_id}\n{seq}\n")
 
-# Parallel processing of files
+# Parallel processing of removed chimeric sequences files
 with concurrent.futures.ThreadPoolExecutor() as executor:
-    results = list(executor.map(process_file, glob.glob("removed_chimeric_sequences_*.txt")))
-
-# Add results to DataFrame
-for result in results:
-    df = df.append(result, ignore_index=True)
-
-# Save DataFrame as a CSV file for the final report
-df.to_csv("final_report.csv", index=False)
+    executor.map(process_removed_file, glob.glob("removed_chimeric_sequences_*.txt"))
