@@ -10,6 +10,7 @@ library(tibble)
 setwd("/gpfs/space/home/alihakim/vlad")
 
 
+
 # List all fastq files in the working directory
 fnFs <- list.files(pattern = ".fastq", full.names = TRUE)
 
@@ -31,7 +32,7 @@ if(length(missing_files) > 0) {
 filtFs <- filtFs[file.exists(filtFs)]
 
 # Determine the number of subsets to process
-n_subsets <- 2  # Adjust this number based on your system's capacity
+n_subsets <- 10  # Adjust this number based on your system's capacity
 
 # Determine the number of files per subset
 files_per_subset <- ceiling(length(filtFs) / n_subsets)
@@ -56,13 +57,21 @@ for(i in seq_len(n_subsets)){
 # Combine all the dereplicated data into a single list
 derepFs <- do.call(c, derep_list)
 
-# Learn error rates
-dadaFs <- dada(derepFs, err = NULL, selfConsist = TRUE, HOMOPOLYMER_GAP_PENALTY = 1, multithread = TRUE)
+
+# Learn error rates 1
+err <- learnErrors(errorEstimationFunction = PacBioErrfun, derepFs, multithread = TRUE, verbose = TRUE, qualityType = "FastqQuality", 
+                      BAND_SIZE = 32, OMEGA_A = 1e-20, OMEGA_C = 1e-20)
+
+
+# Learn error rates 2
+dadaFs <- dada(derepFs, err = err, multithread = TRUE, verbose = TRUE, BAND_SIZE = 32)
 
 # Create sequence table
 seqtab <- makeSequenceTable(dadaFs)
+
 # Inspect sequence table
 print(dim(seqtab))
+
 # Save sequence table for later chimera filtering
 saveRDS(seqtab, "sequence_table.rds")
 
