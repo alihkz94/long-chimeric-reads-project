@@ -1,52 +1,103 @@
-# Import the os module for file operations
 import os
+import glob
+from Bio import SeqIO
+import concurrent.futures
 
-# Initialize dictionaries and lists
-fasta_dict = {}
-seq_ids_to_extract = []
-
-# File paths
-fasta_path = 'chimera.fasta'  # Replace with the path to your chimera.fasta file
-seq_ids_path = 'chimeric_sequences.txt'  # Replace with the path to your chimeric_sequences.txt file
-
-# Manually parse the chimera.fasta file and populate the fasta_dict
-with open(fasta_path, 'r') as f:
-    current_header = ""
-    current_sequence = ""
-    for line in f:
-        line = line.strip()
-        if line.startswith(">"):
-            if current_header:
-                fasta_dict[current_header] = current_sequence
-            current_header = line[1:].split(" ")[0]  # Take only the first part of the header (identifier)
-            current_sequence = ""
+# Function to handle duplicate keys (from your previous script)
+def handle_duplicate_keys(record_iter):
+    counts = {}
+    for record in record_iter:
+        key = record.id
+        if key in counts:
+            counts[key] += 1
+            key = f"{key}_{counts[key]}"
         else:
-            current_sequence += line
-    # Add the last sequence
-    if current_header:
-        fasta_dict[current_header] = current_sequence
+            counts[key] = 0
+        record.id = key
+        yield record
 
-# Manually parse the chimeric_sequences.txt file and populate the seq_ids_to_extract list
-with open(seq_ids_path, 'r') as f:
-    for line in f:
-        line = line.strip()
-        seq_ids_to_extract.append(line)
+# Create a directory to store the new FASTA files
+if not os.path.exists('fasta_files'):
+    os.makedirs('fasta_files')
 
-# Match based on sequence content
-matching_sequences = {key: value for key, value in fasta_dict.items() if value in seq_ids_to_extract}
+# Read metabar FASTA file once, handling duplicate keys
+metabar_dict = SeqIO.to_dict(handle_duplicate_keys(SeqIO.parse("metabar_uchime_input.fasta", "fasta")))
 
-# Generate a new FASTA file using the matching_sequences dictionary
-output_fasta_content = ""
-for seq_id, seq_content in matching_sequences.items():
-    output_fasta_content += f">{seq_id}\n{seq_content}\n"
+# Function to process each removed chimeric sequences file
+def process_removed_file(filepath):
+    # Initialize a list to store new FASTA records
+    new_fasta_records = []
+    
+    # Read the sequences in the current removed_chimeric_sequences file
+    with open(filepath, 'r') as f:
+        removed_seqs = set(f.read().splitlines())
+    
+    # Map each removed sequence to its original header and sequence in the metabar FASTA file
+    for seq_id, sequence in metabar_dict.items():
+        if sequence.seq in removed_seqs:
+            new_fasta_records.append((seq_id, str(sequence.seq)))
+    
+    # Write the new FASTA records to a file in the 'fasta_files' directory
+    output_filepath = os.path.join('fasta_files', os.path.basename(filepath).replace('.txt', '.fasta'))
+    
+    with open(output_filepath, 'w') as f:
+        for seq_id, seq in new_fasta_records:
+            f.write(f">{seq_id}\n{seq}\n")
 
-# Save the new FASTA file as filtered_chimera.fasta
-output_fasta_path = 'filtered_chimera_pooled.fasta'  # Replace with the desired output file path
-with open(output_fasta_path, 'w') as f:
-    f.write(output_fasta_content)
+# Parallel processing of removed chimeric sequences files
+with concurrent.futures.ThreadPoolExecutor() as executor:
+    executor.map(process_removed_file, glob.glob("removed_chimeric_sequences_*.txt"))
 
-# Verify if the new file has been generated successfully
-file_exists = os.path.exists(output_fasta_path)
-file_size = os.path.getsize(output_fasta_path) if file_exists else 0
 
-print(f"File exists: {file_exists}, File size: {file_size} bytes")
+
+####################ONLY CHIMERIC FASTA HEADERS ONES#########################
+import os
+import glob
+from Bio import SeqIO
+import concurrent.futures
+
+# Function to handle duplicate keys (from your previous script)
+def handle_duplicate_keys(record_iter):
+    counts = {}
+    for record in record_iter:
+        key = record.id
+        if key in counts:
+            counts[key] += 1
+            key = f"{key}_{counts[key]}"
+        else:
+            counts[key] = 0
+        record.id = key
+        yield record
+
+# Create a directory to store the new FASTA files
+if not os.path.exists('fasta_files'):
+    os.makedirs('fasta_files')
+
+# Read metabar FASTA file once, handling duplicate keys
+metabar_dict = SeqIO.to_dict(handle_duplicate_keys(SeqIO.parse("metabar_uchime_input.fasta", "fasta")))
+
+# Function to process each removed chimeric sequences file
+def process_removed_file(filepath):
+    # Initialize a list to store new FASTA records
+    new_fasta_records = []
+    
+    # Read the sequences in the current removed_chimeric_sequences file
+    with open(filepath, 'r') as f:
+        removed_seqs = set(f.read().splitlines())
+    
+    # Map each removed sequence to its original header and sequence in the metabar FASTA file
+    # and filter only those that start with "chimera_"
+    for seq_id, sequence in metabar_dict.items():
+        if sequence.seq in removed_seqs and seq_id.startswith("chimera_"):
+            new_fasta_records.append((seq_id, str(sequence.seq)))
+    
+    # Write the new FASTA records to a file in the 'fasta_files' directory
+    output_filepath = os.path.join('fasta_files', os.path.basename(filepath).replace('.txt', '_chimeric.fasta'))
+    
+    with open(output_filepath, 'w') as f:
+        for seq_id, seq in new_fasta_records:
+            f.write(f">{seq_id}\n{seq}\n")
+
+# Parallel processing of removed chimeric sequences files
+with concurrent.futures.ThreadPoolExecutor() as executor:
+    executor.map(process_removed_file, glob.glob("removed_chimeric_sequences_*.txt"))
