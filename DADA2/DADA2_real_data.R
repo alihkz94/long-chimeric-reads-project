@@ -82,7 +82,7 @@ seqtab <- readRDS("sequence_table.rds")
 # Chimera filtering
 nonchimeric_seqtab <- removeBimeraDenovo(seqtab, minSampleFraction = 0.9, ignoreNNegatives = 1, 
                                          minFoldParentOverAbundance = 1.5, minParentAbundance = 2, 
-                                         allowOneOff = TRUE, minOneOffParentDistance = 2, maxShift = 300, 
+                                         allowOneOff = TRUE, minOneOffParentDistance = 2, maxShift = 350, 
                                          multithread = TRUE, verbose = TRUE)
 
 # Identify chimeric sequences
