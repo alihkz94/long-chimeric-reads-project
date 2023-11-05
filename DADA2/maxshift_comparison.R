@@ -151,3 +151,13 @@ unique_plot = ggplot(unique_data, aes(x = Type, y = Score, fill = Type)) +
   theme_minimal() +
   theme(plot.title = element_text(size = 16, face = "bold"))
 print(unique_plot)
+
+
+# Save the enhanced plot as a PDF with increased width for clarity
+ggsave("enhanced_plot.pdf", plot = enhanced_plot, width = 12, height = 6)
+
+# Save the all chimeras plot as a PDF with increased width for clarity
+ggsave("all_chimeras_plot.pdf", plot = all_plot, width = 12, height = 6)
+
+# Save the unique chimeras plot as a PDF with increased width for clarity
+ggsave("unique_chimeras_plot.pdf", plot = unique_plot, width = 16, height = 6)
