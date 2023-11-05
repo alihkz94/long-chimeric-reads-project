@@ -105,19 +105,29 @@ print(enhanced_plot)
 all_data = data.frame()
 unique_data = data.frame()
 
-# Loop through files 11 to 17
-for(i in 11:17) {
+# Process the original file (number 11)
+df1 = process_fasta(file_name_mapping["11"])
+
+# Add unique sequences for the first file (maxshift_100) to the unique_data data frame
+unique_to_df1_all = df1$seq_names
+for(i in 12:17) {
+  df_current = process_fasta(file_name_mapping[as.character(i)])
+  unique_to_df1_all = setdiff(unique_to_df1_all, df_current$seq_names)
+}
+unique_df1_all = df1[df1$seq_names %in% unique_to_df1_all,]
+unique_data = rbind(unique_data, data.frame(Score = unique_df1_all$scores, Type = "Unique to maxshift_100"))
+
+# Loop through files 12 to 17 to find unique sequences compared to file 11
+for(i in 12:17) {
   file_name = file_name_mapping[as.character(i)]
   df_current = process_fasta(file_name)
   
   all_data = rbind(all_data, data.frame(Score = df_current$scores, Type = paste0("All in ", file_label_mapping[as.character(i)])))
   
-  if(i != 11) {
-    unique_to_current = setdiff(df_current$seq_names, df1$seq_names)
-    unique_df_current = df_current[df_current$seq_names %in% unique_to_current,]
-    
-    unique_data = rbind(unique_data, data.frame(Score = unique_df_current$scores, Type = paste0("Unique to ", file_label_mapping[as.character(i)])))
-  }
+  unique_to_current = setdiff(df_current$seq_names, df1$seq_names)
+  unique_df_current = df_current[df_current$seq_names %in% unique_to_current,]
+  
+  unique_data = rbind(unique_data, data.frame(Score = unique_df_current$scores, Type = paste0("Unique to ", file_label_mapping[as.character(i)])))
 }
 
 # Visualization for all chimeras with new x-axis labels
@@ -131,11 +141,11 @@ all_plot = ggplot(all_data, aes(x = Type, y = Score, fill = Type)) +
   theme(plot.title = element_text(size = 16, face = "bold"))
 print(all_plot)
 
-# Visualization for unique chimeras compared to File 11 with new x-axis labels
+# Visualization for unique chimeras with new x-axis labels
 unique_plot = ggplot(unique_data, aes(x = Type, y = Score, fill = Type)) +
   geom_boxplot(alpha = 0.7) +
   scale_x_discrete(labels = file_label_mapping) +
-  labs(title = "Breakpoint Scores for Unique Chimeras Compared to File 11",
+  labs(title = "Breakpoint Scores for Unique Chimeras",
        x = "Maxshift Conditions",
        y = "Breakpoint Score") +
   theme_minimal() +
