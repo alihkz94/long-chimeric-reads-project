@@ -35,3 +35,5 @@ Number of chimeric reads with one part shorter than 60 bps: 53
 Number of chimeric reads with one part shorter than 70 bps: 103
 
 Number of chimeric reads with one part shorter than 100 bps: 283
+
+the shortest first parent is 50 bp, and the second parent shortest is 260 bp.
