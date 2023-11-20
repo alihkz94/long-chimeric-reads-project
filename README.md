@@ -17,3 +17,10 @@ vsearch --fastq_filter input_file --fastq_maxee 1 --fastq_maxns 0  --fastq_minle
 
 ## Best settings 
 The best settings that Uchime achieved were with settings --mindiv 0.4 --dn 1.6 --minh 0.08. 
+
+## treat chimeras
+
+we can run it by this script: 
+``` bash
+python chimera_recovery.py --blast_output blast_1st_tophit.txt --output recovered.csv --min_occurrence 2 --input_fasta combined_chimeras.fasta
+``` 
