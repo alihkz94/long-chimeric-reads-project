@@ -17,8 +17,8 @@ min_occurrence=2
 # Create the report file if it doesn't exist
 touch "$report_file"
 
-# Create the temporary file if it doesn't exist
-touch "$temp_file"
+# Initialize the total chimera count variable
+total_chimera_count=0
 
 # Process each FASTA file in the input directory
 for file in "$input_dir"/*.fasta; do
@@ -33,7 +33,7 @@ for file in "$input_dir"/*.fasta; do
     header=""
     # Read each line in the file
     while IFS= read -r line || [[ -n "$line" ]]; do
-        # If the line starts with ">", it's a header
+        # If the line starts with ">"", it's a header
         if [[ $line == ">"* ]]; then
             # If there's a previous sequence, save it and its header
             if [ -n "$sequence" ]; then
@@ -49,7 +49,7 @@ for file in "$input_dir"/*.fasta; do
                 echo "$sequence" >> "$temp_file"
 
                 # Add the header and sequence count to the report file
-                echo "$basename,$sequence_count" >> "$report_file"
+                total_chimera_count=$((total_chimera_count + sequence_count))
             fi
 
             # Save the new header
@@ -76,18 +76,15 @@ for file in "$input_dir"/*.fasta; do
         echo "$sequence" >> "$temp_file"
 
         # Add the header and sequence count to the report file
-        echo "$basename,$sequence_count" >> "$report_file"
+        total_chimera_count=$((total_chimera_count + sequence_count))
     fi
 done
 
-# Move the temporary file to a safe location
-mv "$temp_file" "$temp_file_backup"
-
-# Delete the temporary file
-rm "$temp_file"
+# Move the temporary file to the report file
+mv "$temp_file" "$report_file"
 
 # Print a completion message
 echo "Processing complete. Chimeric sequences added to non-chimeric files."
 
 # Generate a table summarizing the number of chimeras transferred from each file
-cat "$report_file" | awk '{filename=$1; count=$2; print filename, count}' | sort -n
+cat "$report_file" | awk '{filename=$1; count=$2; print filename, count}' | sort -n > "informative_report.txt"
