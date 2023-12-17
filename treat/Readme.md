@@ -1,8 +1,8 @@
-## reports for different modules and with recovery of chimeras: 
+## reports for different modules and with recovery of chimeras with Jamy dataset: 
 
 ### With uchime_best settings: 
 
-**chimera rescue**
+**Chimera rescue**
 
 Filename,Before,After,Rescued
 
