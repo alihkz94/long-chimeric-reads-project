@@ -3,6 +3,7 @@
 ### With uchime_best settings: 
 
 **chimera rescue**
+
 Filename,Before,After,Rescued
 ERR6454464,263925,264415,490
 ERR6454465,351660,351660,0
@@ -16,6 +17,7 @@ ERR6454478,95166,95172,6
 Total Rescued Sequences: 3754
 
 **Blast**
+
 Filename,Before,After,Rescued
 ERR6454472,96277,96277,0
 ERR6454471,163431,163436,5
