@@ -42,13 +42,13 @@ input_dir="/media/ali/data_store/test_chim/chimeras"
 non_chimeric_dir="/media/ali/data_store/test_chim"
 new_non_chimeric_dir="/media/ali/data_store/test_chim/new_non_chimeric"
 
+# Create a new directory for modified non-chimeric files
+mkdir -p "$new_non_chimeric_dir"
+
 # Check if directories exist
 check_dir "$input_dir"
 check_dir "$non_chimeric_dir"
 check_dir "$new_non_chimeric_dir"
-
-# Create a new directory for modified non-chimeric files
-mkdir -p "$new_non_chimeric_dir"
 
 # Report file
 report_file="report.txt"
