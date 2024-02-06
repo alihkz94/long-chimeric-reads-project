@@ -1,3 +1,7 @@
+## The script is designed to add False nonchimeric reads from the chimeric files into the non-chimeric ones. for the input three directories needed. One for the chimeric reads which needs the name of the 
+## fasta files be in ".chimeras.fasta" format. The other is for the non_chimeric directory with ".fasta" format files, and later on, the "new_non_chimeric" directory will be created for storing the new 
+## non_chimeric ones. 
+
 #!/bin/bash
 
 # Define directories
@@ -5,7 +9,7 @@ input_dir="/media/ali/data_store/test_chim/chimeras"
 non_chimeric_dir="/media/ali/data_store/test_chim"
 new_non_chimeric_dir="/media/ali/data_store/test_chim/new_non_chimeric"
 
-# Create new directory for modified non-chimeric files
+# Create a new directory for modified non-chimeric files
 mkdir -p "$new_non_chimeric_dir"
 
 # Report file
