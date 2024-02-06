@@ -1,8 +1,24 @@
-## The script is designed to add False nonchimeric reads from the chimeric files into the non-chimeric ones. for the input three directories needed. One for the chimeric reads which needs the name of the 
+## The script is designed to add True nonchimeric reads from the chimeric files into the non-chimeric ones. For the input, three directories are needed. One for the chimeric reads which needs the name of the 
 ## fasta files be in ".chimeras.fasta" format. The other is for the non_chimeric directory with ".fasta" format files, and later on, the "new_non_chimeric" directory will be created for storing the new 
-## non_chimeric ones. 
+## non_chimeric ones. The report.txt file will be created at the end which holds the number of the sequences related to each file in three states of "before, after, rescued". 
 
 #!/bin/bash
+
+# Function to check if a directory exists
+check_dir() {
+    if [ ! -d "$1" ]; then
+        echo "Error: Directory $1 does not exist."
+        exit 1
+    fi
+}
+
+# Function to validate FASTA format
+validate_fasta() {
+    if ! grep -q "^>" "$1"; then
+        echo "Error: File $1 does not appear to be in FASTA format."
+        exit 1
+    fi
+}
 
 # Define directories
 input_dir="/media/ali/data_store/test_chim/chimeras"
@@ -11,6 +27,11 @@ new_non_chimeric_dir="/media/ali/data_store/test_chim/new_non_chimeric"
 
 # Create a new directory for modified non-chimeric files
 mkdir -p "$new_non_chimeric_dir"
+
+# Check if directories exist
+check_dir "$input_dir"
+check_dir "$non_chimeric_dir"
+check_dir "$new_non_chimeric_dir"
 
 # Report file
 report_file="report.txt"
