@@ -3,6 +3,7 @@
 ## non_chimeric ones. The report.txt file will be created at the end which holds the number of the sequences related to each file in three states of "before, after, rescued". 
 ## usage:  ./chimera_rescue.sh -c ./chimeras -n . 
 ## "-c" option is for the chimeric reads directory and the "-n" option is for the nonchimeric reads directory.
+
 #!/bin/bash
 
 # Function to check if a directory exists
