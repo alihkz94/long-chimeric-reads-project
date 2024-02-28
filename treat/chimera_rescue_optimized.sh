@@ -1,7 +1,8 @@
 ## The script is designed to add True nonchimeric reads from the chimeric files into the non-chimeric ones. For the input, three directories are needed. One for the chimeric reads which needs the name of the 
 ## fasta files be in ".chimeras.fasta" format. The other is for the non_chimeric directory with ".fasta" format files, and later on, the "new_non_chimeric" directory will be created for storing the new 
 ## non_chimeric ones. The report.txt file will be created at the end which holds the number of the sequences related to each file in three states of "before, after, rescued". 
-
+## usage:  ./chimera_rescue.sh -c ./chimeras -n . 
+## "-c" option is for the chimeric reads directory and the "-n" option is for the nonchimeric reads directory.
 #!/bin/bash
 
 # Function to check if a directory exists
