@@ -125,4 +125,4 @@ done
 # Report total rescued sequences
 echo "Total Rescued Sequences: $total_rescued" >> "$report_file"
 
-echo "Processing complete. Chimeric sequences processed into non-chimeric files."
+echo "Processing complete. False chimeric sequences processed into non-chimeric files."
