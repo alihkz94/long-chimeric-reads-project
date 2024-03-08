@@ -10,7 +10,7 @@
 check_dir() {
     if [ ! -d "$1" ]; then
         echo "Error: Directory $1 does not exist."
-        exit  1
+        exit 1
     fi
 }
 
@@ -18,7 +18,7 @@ check_dir() {
 validate_fasta() {
     if [ ! -s "$1" ] || ! grep -q "^>" "$1"; then
         echo "Error: File $1 does not appear to be in FASTA format."
-        exit  1
+        exit 1
     fi
 }
 
@@ -34,7 +34,7 @@ while getopts ":c:n:" opt; do
     n) non_chimeric_dir="$OPTARG"
     ;;
     \?) echo "Invalid option -$OPTARG" >&2
-    exit  1
+    exit 1
     ;;
   esac
 done
@@ -42,7 +42,7 @@ done
 # Check if directories were provided
 if [ -z "$chimeric_dir" ] || [ -z "$non_chimeric_dir" ]; then
     echo "Usage: $0 -c <chimeric_reads_dir> -n <non_chimeric_dir>"
-    exit  1
+    exit 1
 fi
 
 # Automatically set the new_non_chimeric_dir
@@ -94,28 +94,32 @@ for chimera_file in "$chimeric_dir"/*.chimeras.fasta; do
 
     # Process chimeric sequences
     if [ -f "$chimera_file" ] && [ -s "$chimera_file" ]; then
-        # Temporary file to store unique sequences from the chimeric file
-        temp_chimera_file="/tmp/temp_chimera_$basename.fasta"
-        touch "$temp_chimera_file"
+        # Declare an associative array to hold sequence-header mappings
+        declare -A seq_header_map
 
-        grep -v "^>" "$chimera_file" | sort | uniq -c | while read count sequence; do
+        # Populate the associative array with header-sequence pairs
+        while IFS= read -r line; do
+            if [[ $line == ">"* ]]; then
+                current_header=$line
+            else
+                seq_header_map["$line"]+="${current_header}\n"
+            fi
+        done < "$chimera_file"
+
+        # Process the associative array to count occurrences and rescue sequences
+        for sequence in "${!seq_header_map[@]}"; do
+            count=$(echo -e "${seq_header_map[$sequence]}" | grep -c "^>")
             if [ "$count" -ge "$min_occurrence" ]; then
-                # Find the header for the sequence
-                header=$(grep -B  1 "$sequence" "$chimera_file" | grep "^>")
-                # Add sequence to the new non-chimeric file
+                # Retrieve the first header associated with this sequence
+                header=$(echo -e "${seq_header_map[$sequence]}" | head -n 1)
                 echo -e "$header\n$sequence" >> "$new_non_chimeric_file"
                 ((rescued++))
             fi
         done
-
-        # Remove temporary file
-        rm "$temp_chimera_file"
     fi
 
     # Count sequences in the enhanced non-chimeric file
     count_after=$(grep -c "^>" "$new_non_chimeric_file")
-    # Calculate the number of rescued sequences
-    rescued=$((count_after - count_before))
 
     # Write to report file
     echo "$basename,$count_before,$count_after,$rescued" >> "$report_file"
@@ -125,4 +129,4 @@ done
 # Report total rescued sequences
 echo "Total Rescued Sequences: $total_rescued" >> "$report_file"
 
-echo "Processing complete. False chimeric sequences processed into non-chimeric files."
+echo "Processing complete. Chimeric sequences processed into non-chimeric files."
