@@ -1,5 +1,5 @@
 ## The script is designed to add True nonchimeric reads from the chimeric files into the non-chimeric ones. For the input, three directories are needed. One for the chimeric reads which needs the name of the 
-## fasta files be in ".chimeras.fasta" format. The other is for the non_chimeric directory with ".fasta" format files, and later on, the "new_non_chimeric" directory will be created for storing the new 
+## fasta files be in ".chimeras.fasta" format. The other is for the non_chimeric directory with ".fasta" format files, and later on, the "Rechime_non_chimeric" directory will be created for storing the new 
 ## non_chimeric ones. The report.txt file will be created at the end which holds the number of the sequences related to each file in three states of "before, after, rescued". The file "rechimed.pool.fasta"
 ## will be created to store all the new nonchimeric sequences added to the different samples. 
 ## usage:  ./chimera_rescue.sh -c ./chimeras -n . 
