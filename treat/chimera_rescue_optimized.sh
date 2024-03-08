@@ -1,7 +1,7 @@
 ## The script is designed to add True nonchimeric reads from the chimeric files into the non-chimeric ones. For the input, three directories are needed. One for the chimeric reads which needs the name of the 
 ## fasta files be in ".chimeras.fasta" format. The other is for the non_chimeric directory with ".fasta" format files, and later on, the "Rechime_non_chimeric" directory will be created for storing the new 
 ## non_chimeric ones. The report.txt file will be created at the end which holds the number of the sequences related to each file in three states of "before, after, rescued". The file "rechimed.pool.fasta"
-## will be created to store all the new nonchimeric sequences added to the different samples. 
+## will be created to store all the new nonchimeric sequences added to the different samples.
 ## usage:  ./chimera_rescue.sh -c ./chimeras -n . 
 ## "-c" option is for the chimeric reads directory and the "-n" option is for the nonchimeric reads directory.
 
@@ -51,23 +51,24 @@ new_non_chimeric_dir="${non_chimeric_dir}/Rechime_non_chimeric"
 
 # Create a subfolder for rescued sequences
 seq_rescued_dir="${new_non_chimeric_dir}/seq_rescued"
-mkdir -p "$seq_rescued_dir"
 
 # Path for the pooled rescued sequences file
 rechimed_pool_file="${seq_rescued_dir}/rechimed.pool.fasta"
 
-# Remove the existing new_non_chimeric_dir if it exists and create a new one
+# Remove the existing new_non_chimeric_dir if it exists and create a new one, including the seq_rescued subdirectory
 if [ -d "$new_non_chimeric_dir" ]; then
     rm -rf "$new_non_chimeric_dir"
 fi
-mkdir -p "$new_non_chimeric_dir"
+mkdir -p "$seq_rescued_dir"
 
-# Now create the seq_rescued subdirectory after ensuring the parent directory exists
-seq_rescued_dir="${new_non_chimeric_dir}/seq_rescued"
-mkdir -p "$seq_rescued_dir" # This ensures the directory is created before any file operation occurs
+# Check if directories exist
+check_dir "$chimeric_dir"
+check_dir "$non_chimeric_dir"
 
-# Path for the pooled rescued sequences file
-rechimed_pool_file="${seq_rescued_dir}/rechimed.pool.fasta"
+# Preprocess all FASTA files to ensure sequences are not wrapped and parsed correctly
+for fasta_file in "$chimeric_dir"/*.fasta "$non_chimeric_dir"/*.fasta; do
+    seqkit seq -w 0 "$fasta_file" > "${fasta_file}.tmp" && mv "${fasta_file}.tmp" "$fasta_file"
+done
 
 # Report file path
 report_file="${new_non_chimeric_dir}/report.txt"
@@ -79,7 +80,7 @@ min_occurrence=2
 echo "Filename,Before,After,Rescued" > "$report_file"
 total_rescued=0
 
-# Process each chimeric file
+# Main analysis logic
 for chimera_file in "$chimeric_dir"/*.chimeras.fasta; do
     # Skip validation for empty chimeric files
     if [ ! -s "$chimera_file" ]; then
@@ -104,42 +105,31 @@ for chimera_file in "$chimeric_dir"/*.chimeras.fasta; do
     rescued=0
 
     # Process chimeric sequences
-    if [ -f "$chimera_file" ] && [ -s "$chimera_file" ]; then
-        # Declare an associative array to hold sequence-header mappings
-        declare -A seq_header_map
+    declare -A seq_header_map
+    while IFS= read -r line; do
+        if [[ $line == ">"* ]]; then
+            current_header=$line
+        else
+            seq_header_map["$line"]+="${current_header}\n"
+        fi
+    done < "$chimera_file"
 
-        # Populate the associative array with header-sequence pairs
-        while IFS= read -r line; do
-            if [[ $line == ">"* ]]; then
-                current_header=$line
-            else
-                seq_header_map["$line"]+="${current_header}\n"
-            fi
-        done < "$chimera_file"
+    for sequence in "${!seq_header_map[@]}"; do
+        count=$(echo -e "${seq_header_map[$sequence]}" | grep -c "^>")
+        if [ "$count" -ge "$min_occurrence" ]; then
+            header=$(echo -e "${seq_header_map[$sequence]}" | head -n 1)
+            echo -e "$header\n$sequence" >> "$new_non_chimeric_file"
+            echo -e "$header\n$sequence" >> "$rechimed_pool_file"
+            ((rescued++))
+        fi
+    done
 
-        # Process the associative array to count occurrences and rescue sequences
-        for sequence in "${!seq_header_map[@]}"; do
-            count=$(echo -e "${seq_header_map[$sequence]}" | grep -c "^>")
-            if [ "$count" -ge "$min_occurrence" ]; then
-                # Retrieve the first header associated with this sequence
-                header=$(echo -e "${seq_header_map[$sequence]}" | head -n 1)
-                # Append to both the specific file and the pooled file
-                echo -e "$header\n$sequence" >> "$new_non_chimeric_file"
-                echo -e "$header\n$sequence" >> "$rechimed_pool_file"
-                ((rescued++))
-            fi
-        done
-    fi
-
-    # Count sequences in the enhanced non-chimeric file
+    # Count sequences in the enhanced non-chimeric file and report
     count_after=$(grep -c "^>" "$new_non_chimeric_file")
-
-    # Write to report file
     echo "$basename,$count_before,$count_after,$rescued" >> "$report_file"
     total_rescued=$((total_rescued + rescued))
 done
 
-# Report total rescued sequences
+# Final report
 echo "Total Rescued Sequences: $total_rescued" >> "$report_file"
-
 echo "Processing complete. Chimeric sequences processed into non-chimeric files."
