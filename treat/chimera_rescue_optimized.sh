@@ -46,7 +46,14 @@ if [ -z "$chimeric_dir" ] || [ -z "$non_chimeric_dir" ]; then
 fi
 
 # Automatically set the new_non_chimeric_dir
-new_non_chimeric_dir="${non_chimeric_dir}/new_non_chimeric"
+new_non_chimeric_dir="${non_chimeric_dir}/Rechime_non_chimeric"
+
+# Create a subfolder for rescued sequences
+seq_rescued_dir="${new_non_chimeric_dir}/seq_rescued"
+mkdir -p "$seq_rescued_dir"
+
+# Path for the pooled rescued sequences file
+rechimed_pool_file="${seq_rescued_dir}/rechimed.pool.fasta"
 
 # Remove the existing new_non_chimeric_dir if it exists and create a new one
 if [ -d "$new_non_chimeric_dir" ]; then
@@ -54,9 +61,12 @@ if [ -d "$new_non_chimeric_dir" ]; then
 fi
 mkdir -p "$new_non_chimeric_dir"
 
-# Check if directories exist
-check_dir "$chimeric_dir"
-check_dir "$non_chimeric_dir"
+# Now create the seq_rescued subdirectory after ensuring the parent directory exists
+seq_rescued_dir="${new_non_chimeric_dir}/seq_rescued"
+mkdir -p "$seq_rescued_dir" # This ensures the directory is created before any file operation occurs
+
+# Path for the pooled rescued sequences file
+rechimed_pool_file="${seq_rescued_dir}/rechimed.pool.fasta"
 
 # Report file path
 report_file="${new_non_chimeric_dir}/report.txt"
@@ -112,7 +122,9 @@ for chimera_file in "$chimeric_dir"/*.chimeras.fasta; do
             if [ "$count" -ge "$min_occurrence" ]; then
                 # Retrieve the first header associated with this sequence
                 header=$(echo -e "${seq_header_map[$sequence]}" | head -n 1)
+                # Append to both the specific file and the pooled file
                 echo -e "$header\n$sequence" >> "$new_non_chimeric_file"
+                echo -e "$header\n$sequence" >> "$rechimed_pool_file"
                 ((rescued++))
             fi
         done
