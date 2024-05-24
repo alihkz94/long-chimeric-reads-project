@@ -1,3 +1,21 @@
+"""
+This script performs the following tasks:
+
+1. Imports necessary libraries and modules.
+
+2. Loads a FASTA file containing sequences and parses it using Biopython's SeqIO module.
+
+3. Extracts the length of each sequence and the species name from the sequence header. It also generates a value for the 'simlord -n' parameter.
+
+4. Sorts the lengths, species names, and values based on the lengths of the sequences.
+
+5. Iterates over each sequence and performs the following tasks:
+    - Generates a temporary FASTA file for the sequence.
+    - Runs the 'simlord' command on the sequence using the generated value for the '-n' parameter and the temporary FASTA file.
+    - Deletes the temporary FASTA file.
+
+6. Generates a report of the number of sequences in each FASTQ file in a specified folder. The report is saved as a CSV file.
+"""
 import os
 import sys
 from Bio import SeqIO
