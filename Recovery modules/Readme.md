@@ -10,4 +10,4 @@ python BLAST_recovery.py --chimeras_dir ./chimeras --blast_output_dir ./blast_ou
 ```
 
 ### ReChime
-Please read the ReChime_RUNME.txt file for the instructions in the **ReChime_v1.zip** file
+Please read the ReChime_RUNME.txt file for the instructions in the **ReChime_v1.zip** file before running the ReChime module. 
