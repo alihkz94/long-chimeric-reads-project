@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name="70_75"
-#SBATCH --cpus-per-task=128  # Reduced cpu-per-task to allow running multiple jobs
+#SBATCH --cpus-per-task=128
 #SBATCH --nodes=1
 #SBATCH --mem=8G
 #SBATCH --partition amd
