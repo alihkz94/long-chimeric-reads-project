@@ -1,30 +1,10 @@
-## reports for different modules and with recovery of chimeras with Jamy dataset: 
+## RECOVERY MODULES FOR THE CHIMERIC READS
 
-### With uchime_best settings: 
+### BLAST
+ For applying the BLAST module on the chimeric, read the *BLASTn.sh* module needs to run first on the chimeric reads, and later on, the *BLAST_recovery.py* module can be used to rescue the nonchimeric reads. The module can be run by the command below with specifying the directories related to each output:
 
-**Chimera rescue**
+```bash
+python blast_recovery.py --chimeras_dir ./chimeras/ --blast_output_dir ./blast_output/ --nonchimeric_dir .
+```
 
-Filename,Before,After,Rescued
-
-ERR6454464,263925,264415,490
-ERR6454465,351660,351660,0
-ERR6454466,112226,112226,0
-ERR6454467,147613,147613,0
-ERR6454471,163431,163504,73
-ERR6454472,96277,96335,58
-ERR6454473,296909,298288,1379
-ERR6454475,371696,373444,1748
-ERR6454478,95166,95172,6
-Total Rescued Sequences: 3754
-
-**Blast**
-
-Filename,Before,After,Rescued
-
-ERR6454472,96277,96277,0
-ERR6454471,163431,163436,5
-ERR6454464,263925,264159,234
-ERR6454475,371696,371810,114
-ERR6454473,296909,297951,1042
-ERR6454478,95166,95174,8
-Total Rescued Sequences: 1403
+### ReChime
