@@ -95,4 +95,4 @@ def main():
 if __name__ == "__main__":
     main()
 
-#usage: python blast_recovery.py --chimeras_dir /media/ali/data_store/test_blast/chimeras/ --blast_output_dir /media/ali/data_store/test_blast/blast_output/ --nonchimeric_dir /media/ali/data_store/test_blast/
+#usage: python blast_recovery.py --chimeras_dir ./chimeras --blast_output_dir ./blast_output/ --nonchimeric_dir .
