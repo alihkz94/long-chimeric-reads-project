@@ -1,6 +1,9 @@
 # Data and scripts for "Enhancing long-read amplicon sequencing: Overcoming chimeric sequence challenges in biodiversity studies with VSEARCH and DADA2" (Hakimzadeh et al. 2024)
 
 ### Structure
+This repository contains the data and part of the analysis stack for the paper mentioned above. It is structured as follows:
+
+
 1. started by cutadapt with trimming ITS regions.
 2. Later on, the "ITS.fasta" file was inserted for the simulation with SimLoRD.
 3. Later on, quality filtering was applied to reads with the PipeCarft-VSEARCH module, and the script was: 
