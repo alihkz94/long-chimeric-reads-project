@@ -15,3 +15,6 @@ echo "OTU table generated with exact sequence matches."
 rm combined.fasta
 
 echo "Script completed successfully."
+
+#rereplicate the file to be suitable as an input for the DADA2 script: 
+vsearch --rereplicate dereplicated.fasta --output replicated.fasta
