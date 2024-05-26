@@ -1,4 +1,4 @@
-# DATA  and SCRIPTS for "Enhancing long-read amplicon sequencing: Overcoming chimeric sequence challenges in biodiversity studies with VSEARCH and DADA2" (Hakimzadeh et al. 2024)
+# Data and scripts for "Enhancing long-read amplicon sequencing: Overcoming chimeric sequence challenges in biodiversity studies with VSEARCH and DADA2" (Hakimzadeh et al. 2024)
 
 Scripts related to generating simulated reads and chimera tools benchmarking 
 
