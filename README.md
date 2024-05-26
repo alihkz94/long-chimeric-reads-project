@@ -1,6 +1,6 @@
 # Data and scripts for "Enhancing long-read amplicon sequencing: Overcoming chimeric sequence challenges in biodiversity studies with VSEARCH and DADA2" (Hakimzadeh et al. 2024)
 
-Scripts related to generating simulated reads and chimera tools benchmarking 
+##Structure
 
 1. started by cutadapt with trimming ITS regions.
 2. Later on, the "ITS.fasta" file was inserted for the simulation with SimLoRD.
