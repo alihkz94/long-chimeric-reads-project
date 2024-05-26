@@ -46,9 +46,7 @@ saveRDS(seqtab, "sequence_table.rds")
 # Load and use in DADA2
 seqtab <- readRDS("sequence_table.rds")
 # Existing code for chimera filtering
-nonchimeric_seqtab <- removeBimeraDenovo(seqtab, minSampleFraction = 0.9, ignoreNNegatives = 1, method = "consensus",
-                                         minFoldParentOverAbundance = 8, minParentAbundance = 2, 
-                                         allowOneOff = TRUE, minOneOffParentDistance = 2, maxShift = 16, 
+nonchimeric_seqtab <- removeBimeraDenovo(seqtab,method = "consensus",
                                          multithread = TRUE, verbose = TRUE)
 # Extract sequences
 nonchimeric_sequences <- as.character(getSequences(nonchimeric_seqtab))
