@@ -33,6 +33,23 @@ def parse_blast_output(file_path):
         logging.error(f"Error reading file {file_path}: {e}")
         return pd.DataFrame(columns=columns)
 
+def calculate_adjusted_coverage(row):
+    """
+    Calculates adjusted coverage based on the given row data.
+    """
+    slen = row['slen']
+    qlen = row['qlen']
+    sstart = row['sstart']
+    send = row['send']
+    qcovs = row['qcovs']
+
+    if (slen - qlen) < 0:
+        adjCov = ((send - sstart + 1) / slen) * 100
+    else:
+        adjCov = qcovs
+
+    return adjCov
+
 def process_files(chimeras_dir, blast_output_dir, nonchimeric_dir):
     """
     Main processing function.
@@ -62,7 +79,9 @@ def process_files(chimeras_dir, blast_output_dir, nonchimeric_dir):
 
             # Recovering nonchimeric sequences
             for _, record in blast_data.iterrows():
-                if record['qcovs'] > 91:
+                adjCov = calculate_adjusted_coverage(record)
+
+                if adjCov > 91:
                     seq_id = record['qseqid']
                     if seq_id in sequences:
                         rescued_seqs.append(SeqRecord(Seq(sequences[seq_id]), id=seq_id, description=""))
@@ -94,5 +113,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-#usage: python blast_recovery.py --chimeras_dir ./chimeras --blast_output_dir ./blast_output/ --nonchimeric_dir .
