@@ -177,7 +177,7 @@ def plot_multi_panel_line_plot(data):
         
         ax.set_title(method)
         ax.set_ylabel('Number of Reads')
-        ax.set_ylim(100, 1000000)  # Set consistent y-axis limits
+        ax.set_ylim(10, 1000000)  # Set consistent y-axis limits
         ax.legend(loc='upper left')
         ax.grid(True)
         ax.yaxis.set_major_formatter(mtick.FuncFormatter(lambda x, _: f'{int(x):,}'))
