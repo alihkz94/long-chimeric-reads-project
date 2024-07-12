@@ -1,3 +1,8 @@
+###########################################################################################################
+# This is the collection of scripts to generate different plots related to the abundance of each category##
+###########################################################################################################
+
+
 ##### First plot #####
 
 #############################################################################
@@ -162,10 +167,10 @@ def plot_multi_panel_line_plot(data):
         'Chimeric reads',
         'BLASTn recovery'
     ]
-    colors = ['blue', 'green', 'purple']
+    colors = ['blue', 'orange', 'green']
     linestyles = ['-', '--', '-']
 
-    fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(14, 18), sharex=True)
+    fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(7.83, 10.27), sharex=True)  # A4 quarter size
     axes = axes.flatten()
 
     for i, method in enumerate(methods):
@@ -175,20 +180,22 @@ def plot_multi_panel_line_plot(data):
             linestyle = linestyles[j]
             ax.plot(method_data['FILE'], method_data[category], label=category, color=colors[j], linestyle=linestyle)
         
-        ax.set_title(method)
-        ax.set_ylabel('Number of Reads')
-        ax.set_ylim(10, 1000000)  # Set consistent y-axis limits
-        ax.legend(loc='upper left')
+        ax.set_title(method, fontsize=12, fontweight='bold')
+        ax.set_ylabel('Number of Reads', fontsize=10, fontweight='bold')
+        ax.set_ylim(10, 1050000)  # Set consistent y-axis limits
+        if method == 'Uchime Denovo':
+            ax.legend(loc='upper right', fontsize=8, prop={'weight': 'bold'})
         ax.grid(True)
         ax.yaxis.set_major_formatter(mtick.FuncFormatter(lambda x, _: f'{int(x):,}'))
 
-    plt.xlabel('File')
-    plt.xticks(rotation=45)
+    plt.xticks(rotation=90, fontsize=8)
     plt.tight_layout()
+    plt.savefig("abundances.svg", format='svg', dpi=1200)
     plt.show()
 
 # Plot the multi-panel line plot
 plot_multi_panel_line_plot(combined_df)
+
 
 
 
@@ -198,10 +205,8 @@ plot_multi_panel_line_plot(combined_df)
 #This script is related to the queries which tag-jump filtering applied on them and to show logaritmic value embeded in them#
 #############################################################################################################################
 
-#load the required libraries
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib.ticker as mtick
 import numpy as np
 
 # Create dataframes from the provided data
@@ -253,7 +258,7 @@ for col in combined_df.columns:
         combined_df[col] = combined_df[col].apply(lambda x: np.log10(x + 1))
 
 # Define plotting function
-def plot_multi_panel_line_plot(data):
+def plot_multi_panel_line_plot(data, filename):
     methods = data['Method'].unique()
     categories = [
         'Non-chimeric reads',
@@ -273,15 +278,346 @@ def plot_multi_panel_line_plot(data):
             linestyle = linestyles[j]
             ax.plot(method_data['FILE'], method_data[category], label=category, color=colors[j], linestyle=linestyle)
         
-        ax.set_title(method)
-        ax.set_ylabel('Log10(Number of Reads + 1)')
-        ax.legend(loc='upper left')
+        ax.set_title(method, fontsize=16, fontweight='bold')
+        ax.set_ylabel('Log10(Number of Reads + 1)', fontsize=14, fontweight='bold')
+        ax.set_ylim(1.5, 6.3)  # Set y-axis limits to the same range for all plots
+        if method == 'Uchime Denovo':
+            ax.legend(loc='upper right', fontsize=12, prop={'weight': 'bold'})
         ax.grid(True)
+        ax.tick_params(axis='x', rotation=90, labelsize=12, width=2)
+        ax.tick_params(axis='y', labelsize=12, width=2)
+        ax.xaxis.label.set_fontweight('bold')
+        ax.yaxis.label.set_fontweight('bold')
 
-    plt.xlabel('File')
-    plt.xticks(rotation=45)
     plt.tight_layout()
+    plt.savefig(filename, dpi=1200)
     plt.show()
 
 # Plot the multi-panel line plot
-plot_multi_panel_line_plot(combined_df)
+plot_multi_panel_line_plot(combined_df, "abundance_logarithmic.png")
+
+
+
+
+##########Fourth plot##############
+
+############################################################
+#This script is to show each image in a sepearte plot#
+
+# Load the required libraries
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.ticker as mtick
+
+# Create dataframes from the provided data
+uchime_denovo_data = {
+    "FILE": ["ERR6454461.fasta", "ERR6454462.fasta", "ERR6454463.fasta", "ERR6454464.fasta", "ERR6454465.fasta",
+             "ERR6454466.fasta", "ERR6454467.fasta", "ERR6454468.fasta", "ERR6454469.fasta", "ERR6454470.fasta",
+             "ERR6454471.fasta", "ERR6454472.fasta", "ERR6454473.fasta", "ERR6454474.fasta", "ERR6454475.fasta",
+             "ERR6454476.fasta", "ERR6454477.fasta", "ERR6454478.fasta"],
+    "Non-chimeric reads": [176255, 63595, 65824, 235319, 289378, 104501, 110319, 324860, 252619, 996721, 152601, 68418, 211543, 210658, 192483, 193727, 216007, 54275],
+    "Chimeric reads": [1285, 316, 367, 3732, 1099, 884, 1454, 3122, 3004, 10218, 3077, 1482, 25588, 1483, 3012, 4807, 4768, 619],
+    "BLASTn recovery": [421, 111, 110, 2495, 714, 489, 694, 2372, 2611, 7045, 1124, 320, 840, 611, 455, 146, 356, 45]
+}
+
+chimeras_denovo_data = {
+    "FILE": ["ERR6454461.fasta", "ERR6454462.fasta", "ERR6454463.fasta", "ERR6454464.fasta", "ERR6454465.fasta",
+             "ERR6454466.fasta", "ERR6454467.fasta", "ERR6454468.fasta", "ERR6454469.fasta", "ERR6454470.fasta",
+             "ERR6454471.fasta", "ERR6454472.fasta", "ERR6454473.fasta", "ERR6454474.fasta", "ERR6454475.fasta",
+             "ERR6454476.fasta", "ERR6454477.fasta", "ERR6454478.fasta"],
+    "Non-chimeric reads": [170939, 60830, 61212, 231143, 275937, 102035, 104817, 311684, 237071, 896021, 151542, 64185, 213087, 202583, 177376, 187675, 206184, 48076],
+    "Chimeric reads": [6601, 3081, 4979, 7908, 14540, 3350, 6956, 16298, 18552, 110918, 4136, 5715, 24044, 9558, 18119, 10859, 14591, 6818],
+    "BLASTn recovery": [3856, 2776, 2973, 5946, 9876, 2127, 4369, 14001, 18376, 43035, 803, 156, 5787, 1504, 186, 6995, 186, 5940]
+}
+
+dada2_data = {
+    "FILE": ["ERR6454461.fasta", "ERR6454462.fasta", "ERR6454463.fasta", "ERR6454464.fasta", "ERR6454465.fasta",
+             "ERR6454466.fasta", "ERR6454467.fasta", "ERR6454468.fasta", "ERR6454469.fasta", "ERR6454470.fasta",
+             "ERR6454471.fasta", "ERR6454472.fasta", "ERR6454473.fasta", "ERR6454474.fasta", "ERR6454475.fasta",
+             "ERR6454476.fasta", "ERR6454477.fasta", "ERR6454478.fasta"],
+    "Non-chimeric reads": [252601, 90955, 94351, 365009, 439636, 164875, 166830, 508833, 374654, 966078, 229647, 87814, 306617, 259678, 247668, 298874, 311622, 71099],
+    "Chimeric reads": [20593, 10245, 13502, 26106, 45094, 9758, 19784, 45443, 51898, 303374, 15053, 18272, 63023, 29093, 57004, 33134, 43393, 18486],
+    "BLASTn recovery": [11333, 9061, 8372, 19118, 31403, 6806, 12555, 38963, 51350, 137185, 2676, 599, 14183, 5003, 741, 19305, 787, 15641]
+}
+
+# Convert to pandas dataframes
+df_uchime_denovo = pd.DataFrame(uchime_denovo_data)
+df_chimeras_denovo = pd.DataFrame(chimeras_denovo_data)
+df_dada2 = pd.DataFrame(dada2_data)
+
+# Combine dataframes for easier plotting
+df_uchime_denovo['Method'] = 'Uchime Denovo'
+df_chimeras_denovo['Method'] = 'Chimeras Denovo'
+df_dada2['Method'] = 'DADA2'
+
+combined_df = pd.concat([df_uchime_denovo, df_chimeras_denovo, df_dada2])
+
+# Define plotting function with consistent y-axis limits
+def plot_multi_panel_line_plot(data, filename):
+    methods = data['Method'].unique()
+    categories = [
+        'Non-chimeric reads',
+        'Chimeric reads',
+        'BLASTn recovery'
+    ]
+    colors = ['blue', 'green', 'purple']
+    linestyles = ['-', '--', '-']
+
+    fig, axes = plt.subplots(nrows=3, ncols=3, figsize=(20, 16), sharex=True)
+    axes = axes.flatten()
+
+    for i, method in enumerate(methods):
+        for j, category in enumerate(categories):
+            ax = axes[i * 3 + j]
+            method_data = data[data['Method'] == method]
+            ax.plot(method_data['FILE'], method_data[category], label=category, color=colors[j], linestyle=linestyles[j])
+            ax.set_title(f"{method} - {category}", fontsize=16)
+            ax.set_ylabel('Number of Reads', fontsize=14)
+            ax.set_yscale('log')  # Set y-axis to log scale
+            ax.set_ylim(1, 1500000)  # Set consistent y-axis limits
+            ax.grid(True)
+            ax.yaxis.set_major_formatter(mtick.FuncFormatter(lambda x, _: f'{int(x):,}'))
+            ax.tick_params(axis='x', rotation=90, labelsize=12)
+            ax.tick_params(axis='y', labelsize=12)
+
+    plt.tight_layout()
+    plt.savefig(filename, dpi=300)
+    plt.show()
+
+# Plot the multi-panel line plot with consistent y-axis limits and save it in high resolution
+plot_multi_panel_line_plot(combined_df, "high_res_plot.png")
+
+
+
+
+####### High resulation image #########
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+
+# Create dataframes from the provided data
+uchime_denovo_data = {
+    "FILE": ["ERR6454461.fasta", "ERR6454462.fasta", "ERR6454463.fasta", "ERR6454464.fasta", "ERR6454465.fasta",
+             "ERR6454466.fasta", "ERR6454467.fasta", "ERR6454468.fasta", "ERR6454469.fasta", "ERR6454470.fasta",
+             "ERR6454471.fasta", "ERR6454472.fasta", "ERR6454473.fasta", "ERR6454474.fasta", "ERR6454475.fasta",
+             "ERR6454476.fasta", "ERR6454477.fasta", "ERR6454478.fasta"],
+    "Non-chimeric reads": [176255, 63595, 65824, 235319, 289378, 104501, 110319, 324860, 252619, 996721, 152601, 68418, 211543, 210658, 192483, 193727, 216007, 54275],
+    "Chimeric reads": [1285, 316, 367, 3732, 1099, 884, 1454, 3122, 3004, 10218, 3077, 1482, 25588, 1483, 3012, 4807, 4768, 619],
+    "BLASTn recovered reads": [421, 111, 110, 2495, 714, 489, 694, 2372, 2611, 7045, 1124, 320, 840, 611, 455, 146, 356, 45]
+}
+
+chimeras_denovo_data = {
+    "FILE": ["ERR6454461.fasta", "ERR6454462.fasta", "ERR6454463.fasta", "ERR6454464.fasta", "ERR6454465.fasta",
+             "ERR6454466.fasta", "ERR6454467.fasta", "ERR6454468.fasta", "ERR6454469.fasta", "ERR6454470.fasta",
+             "ERR6454471.fasta", "ERR6454472.fasta", "ERR6454473.fasta", "ERR6454474.fasta", "ERR6454475.fasta",
+             "ERR6454476.fasta", "ERR6454477.fasta", "ERR6454478.fasta"],
+    "Non-chimeric reads": [170939, 60830, 61212, 231143, 275937, 102035, 104817, 311684, 237071, 896021, 151542, 64185, 213087, 202583, 177376, 187675, 206184, 48076],
+    "Chimeric reads": [6601, 3081, 4979, 7908, 14540, 3350, 6956, 16298, 18552, 110918, 4136, 5715, 24044, 9558, 18119, 10859, 14591, 6818],
+    "BLASTn recovered reads": [3856, 2776, 2973, 5946, 9876, 2127, 4369, 14001, 18376, 43035, 803, 156, 5787, 1504, 186, 6995, 186, 5940]
+}
+
+dada2_data = {
+    "FILE": ["ERR6454461.fasta", "ERR6454462.fasta", "ERR6454463.fasta", "ERR6454464.fasta", "ERR6454465.fasta",
+             "ERR6454466.fasta", "ERR6454467.fasta", "ERR6454468.fasta", "ERR6454469.fasta", "ERR6454470.fasta",
+             "ERR6454471.fasta", "ERR6454472.fasta", "ERR6454473.fasta", "ERR6454474.fasta", "ERR6454475.fasta",
+             "ERR6454476.fasta", "ERR6454477.fasta", "ERR6454478.fasta"],
+    "Non-chimeric reads": [252601, 90955, 94351, 365009, 439636, 164875, 166830, 508833, 374654, 966078, 229647, 87814, 306617, 259678, 247668, 298874, 311622, 71099],
+    "Chimeric reads": [20593, 10245, 13502, 26106, 45094, 9758, 19784, 45443, 51898, 303374, 15053, 18272, 63023, 29093, 57004, 33134, 43393, 18486],
+    "BLASTn recovered reads": [11333, 9061, 8372, 19118, 31403, 6806, 12555, 38963, 51350, 137185, 2676, 599, 14183, 5003, 741, 19305, 787, 15641]
+}
+
+# Convert to pandas dataframes
+df_uchime_denovo = pd.DataFrame(uchime_denovo_data)
+df_chimeras_denovo = pd.DataFrame(chimeras_denovo_data)
+df_dada2 = pd.DataFrame(dada2_data)
+
+# Combine dataframes for easier plotting
+df_uchime_denovo['Method'] = 'Uchime Denovo'
+df_chimeras_denovo['Method'] = 'Chimeras Denovo'
+df_dada2['Method'] = 'DADA2'
+
+combined_df = pd.concat([df_uchime_denovo, df_chimeras_denovo, df_dada2])
+
+# Convert abundances to logarithmic scale
+for col in combined_df.columns:
+    if col not in ['FILE', 'Method']:
+        combined_df[col] = combined_df[col].apply(lambda x: np.log10(x + 1))
+
+# Define plotting function
+def plot_multi_panel_line_plot(data, filename):
+    methods = data['Method'].unique()
+    categories = [
+        'Non-chimeric reads',
+        'Chimeric reads',
+        'BLASTn recovered reads'
+    ]
+    colors = ['blue', 'orange', 'green']
+    linestyles = ['-', '--', '-']
+
+    fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(7.83, 10.27), sharex=True)  # A4 quarter size
+    axes = axes.flatten()
+
+    for i, method in enumerate(methods):
+        ax = axes[i]
+        method_data = data[data['Method'] == method]
+        for j, category in enumerate(categories):
+            linestyle = linestyles[j]
+            ax.plot(method_data['FILE'], method_data[category], label=category, color=colors[j], linestyle=linestyle)
+        
+        ax.set_title(method, fontsize=12, fontweight='bold')
+        ax.set_ylabel('Log10(Number of Reads + 1)', fontsize=10, fontweight='bold')
+        ax.set_ylim(1.5, 6.3)  # Set y-axis limits to the same range for all plots
+        if method == 'Uchime Denovo':
+            ax.legend(loc='upper right', fontsize=8, prop={'weight': 'bold'})
+        ax.grid(True)
+        ax.tick_params(axis='x', rotation=90, labelsize=12, width=1.5)
+        ax.tick_params(axis='y', labelsize=8, width=1.5)
+        ax.xaxis.label.set_fontweight('bold')
+        ax.yaxis.label.set_fontweight('bold')
+
+    plt.tight_layout()
+    plt.savefig(filename, format='svg', dpi=1200)
+    plt.show()
+
+# Plot the multi-panel line plot
+plot_multi_panel_line_plot(combined_df, "abundance_logarithmic.svg")
+
+
+
+######### Double plot with abundances and logharitmic values #########
+
+
+#########################################################################################################################
+#This script is to show each image in a sepearte plot and side by side and this is the image will be used in the article#
+#########################################################################################################################
+
+# Load the required libraries
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.ticker as mtick
+import numpy as np
+
+# Define the data
+uchime_denovo_data = {
+    "FILE": ["ERR6454461.fasta", "ERR6454462.fasta", "ERR6454463.fasta", "ERR6454464.fasta", "ERR6454465.fasta",
+             "ERR6454466.fasta", "ERR6454467.fasta", "ERR6454468.fasta", "ERR6454469.fasta", "ERR6454470.fasta",
+             "ERR6454471.fasta", "ERR6454472.fasta", "ERR6454473.fasta", "ERR6454474.fasta", "ERR6454475.fasta",
+             "ERR6454476.fasta", "ERR6454477.fasta", "ERR6454478.fasta"],
+    "Non-chimeric reads": [176255, 63595, 65824, 235319, 289378, 104501, 110319, 324860, 252619, 996721, 152601, 68418, 211543, 210658, 192483, 193727, 216007, 54275],
+    "Chimeric reads": [1285, 316, 367, 3732, 1099, 884, 1454, 3122, 3004, 10218, 3077, 1482, 25588, 1483, 3012, 4807, 4768, 619],
+    "BLASTn recovered reads": [421, 111, 110, 2495, 714, 489, 694, 2372, 2611, 7045, 1124, 320, 840, 611, 455, 146, 356, 45]
+}
+
+chimeras_denovo_data = {
+    "FILE": ["ERR6454461.fasta", "ERR6454462.fasta", "ERR6454463.fasta", "ERR6454464.fasta", "ERR6454465.fasta",
+             "ERR6454466.fasta", "ERR6454467.fasta", "ERR6454468.fasta", "ERR6454469.fasta", "ERR6454470.fasta",
+             "ERR6454471.fasta", "ERR6454472.fasta", "ERR6454473.fasta", "ERR6454474.fasta", "ERR6454475.fasta",
+             "ERR6454476.fasta", "ERR6454477.fasta", "ERR6454478.fasta"],
+    "Non-chimeric reads": [170939, 60830, 61212, 231143, 275937, 102035, 104817, 311684, 237071, 896021, 151542, 64185, 213087, 202583, 177376, 187675, 206184, 48076],
+    "Chimeric reads": [6601, 3081, 4979, 7908, 14540, 3350, 6956, 16298, 18552, 110918, 4136, 5715, 24044, 9558, 18119, 10859, 14591, 6818],
+    "BLASTn recovered reads": [3856, 2776, 2973, 5946, 9876, 2127, 4369, 14001, 18376, 43035, 803, 156, 5787, 1504, 186, 6995, 186, 5940]
+}
+
+dada2_data = {
+    "FILE": ["ERR6454461.fasta", "ERR6454462.fasta", "ERR6454463.fasta", "ERR6454464.fasta", "ERR6454465.fasta",
+             "ERR6454466.fasta", "ERR6454467.fasta", "ERR6454468.fasta", "ERR6454469.fasta", "ERR6454470.fasta",
+             "ERR6454471.fasta", "ERR6454472.fasta", "ERR6454473.fasta", "ERR6454474.fasta", "ERR6454475.fasta",
+             "ERR6454476.fasta", "ERR6454477.fasta", "ERR6454478.fasta"],
+    "Non-chimeric reads": [252601, 90955, 94351, 365009, 439636, 164875, 166830, 508833, 374654, 966078, 229647, 87814, 306617, 259678, 247668, 298874, 311622, 71099],
+    "Chimeric reads": [20593, 10245, 13502, 26106, 45094, 9758, 19784, 45443, 51898, 303374, 15053, 18272, 63023, 29093, 57004, 33134, 43393, 18486],
+    "BLASTn recovered reads": [11333, 9061, 8372, 19118, 31403, 6806, 12555, 38963, 51350, 137185, 2676, 599, 14183, 5003, 741, 19305, 787, 15641]
+}
+
+# Convert to pandas dataframes
+df_uchime_denovo = pd.DataFrame(uchime_denovo_data)
+df_chimeras_denovo = pd.DataFrame(chimeras_denovo_data)
+df_dada2 = pd.DataFrame(dada2_data)
+
+# Combine dataframes for easier plotting
+df_uchime_denovo['Method'] = 'Uchime Denovo'
+df_chimeras_denovo['Method'] = 'Chimeras Denovo'
+df_dada2['Method'] = 'DADA2'
+
+combined_df = pd.concat([df_uchime_denovo, df_chimeras_denovo, df_dada2])
+
+# Create a copy of the dataframe for the second plot and convert abundances to logarithmic scale
+log_combined_df = combined_df.copy()
+for col in log_combined_df.columns:
+    if col not in ['FILE', 'Method']:
+        log_combined_df[col] = log_combined_df[col].apply(lambda x: np.log10(x + 1))
+
+# Define plotting function for the first image
+def plot_first_image(data, axes):
+    methods = data['Method'].unique()
+    categories = [
+        'Non-chimeric reads',
+        'Chimeric reads',
+        'BLASTn recovered reads'
+    ]
+    colors = ['blue', 'orange', 'green']
+    linestyles = ['-', '--', '-']
+
+    for i, method in enumerate(methods):
+        ax = axes[i]
+        method_data = data[data['Method'] == method]
+        for j, category in enumerate(categories):
+            linestyle = linestyles[j]
+            ax.plot(method_data['FILE'], method_data[category], label=category, color=colors[j], linestyle=linestyle)
+        
+        ax.set_title(method, fontsize=12, fontweight='bold')
+        ax.set_ylabel('Number of Reads', fontsize=12, fontweight='bold')
+        ax.set_ylim(10, 1050000)  # Set consistent y-axis limits
+        if method == 'Uchime Denovo':
+            ax.legend(loc='upper left', fontsize=10, prop={'weight': 'bold'})
+        ax.grid(True)
+        ax.yaxis.set_major_formatter(mtick.FuncFormatter(lambda x, _: f'{int(x):,}'))
+        ax.tick_params(axis='x', rotation=90, labelsize=10, width=1.5, labelcolor='black', colors='black')
+        ax.tick_params(axis='y', labelsize=10, width=1.5, labelcolor='black', colors='black')
+
+# Define plotting function for the second image
+def plot_second_image(data, axes):
+    methods = data['Method'].unique()
+    categories = [
+        'Non-chimeric reads',
+        'Chimeric reads',
+        'BLASTn recovered reads'
+    ]
+    colors = ['blue', 'orange', 'green']
+    linestyles = ['-', '--', '-']
+
+    for i, method in enumerate(methods):
+        ax = axes[i]
+        method_data = data[data['Method'] == method]
+        for j, category in enumerate(categories):
+            linestyle = linestyles[j]
+            ax.plot(method_data['FILE'], method_data[category], label=category, color=colors[j], linestyle=linestyle)
+        
+        ax.set_title(method, fontsize=12, fontweight='bold')
+        ax.set_ylabel('Log10(Number of Reads + 1)', fontsize=12, fontweight='bold')
+        ax.set_ylim(1.5, 6.3)  # Set y-axis limits to the same range for all plots
+        ax.grid(True)
+        ax.tick_params(axis='x', rotation=90, labelsize=10, width=1.5, labelcolor='black', colors='black')
+        ax.tick_params(axis='y', labelsize=10, width=1.5, labelcolor='black', colors='black')
+        ax.xaxis.label.set_fontweight('bold')
+        ax.yaxis.label.set_fontweight('bold')
+
+# Create the figure and axes for the combined image
+fig, axes = plt.subplots(nrows=3, ncols=2, figsize=(15.66, 10.27), sharex=True)
+
+# Plot the first image on the left side
+plot_first_image(combined_df, axes[:, 0])
+
+# Plot the second image on the right side
+plot_second_image(log_combined_df, axes[:, 1])
+
+# Remove legends from the right-hand plots if they exist
+for ax in axes[:, 1]:
+    legend = ax.get_legend()
+    if legend:
+        legend.remove()
+
+# Save the combined image
+plt.tight_layout()
+plt.savefig("combined_abundances.svg", format='svg', dpi=1200)
+plt.show()
