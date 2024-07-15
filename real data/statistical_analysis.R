@@ -1,6 +1,7 @@
-######################################################################################################################################################################
-#The scripts are for the box plot generations of chimeric reads and also statical test analysis to see how different methods vary in the detection of chimeric reads## 
-######################################################################################################################################################################
+#####################################################################################################################
+# The scripts are for the box plot plotting of chimeric, nonchimeric, and nonchimeric plus BLAST recovered read     # 
+# together. Furthermore, statical test analysis to see how different methods vary in the detection of chimeric reads# 
+#####################################################################################################################
 
 
 #####chimeric reads boxplot for custom settings####
