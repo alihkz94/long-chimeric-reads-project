@@ -52,6 +52,102 @@ boxplot <- ggplot(data_long, aes(x = Method, y = Count, fill = Method)) +
 # Display the plot
 print(boxplot)
 
+##### non-chimeric boxplot for custom settings ####
+
+# Load the necessary libraries
+library(ggplot2)
+library(reshape2)
+library(scales)
+
+# Define the new data frame
+additional_data <- data.frame(
+  FILE = c("ERR6454461.fasta", "ERR6454462.fasta", "ERR6454463.fasta", "ERR6454464.fasta", 
+           "ERR6454465.fasta", "ERR6454466.fasta", "ERR6454467.fasta", "ERR6454468.fasta", 
+           "ERR6454469.fasta", "ERR6454470.fasta", "ERR6454471.fasta", "ERR6454472.fasta", 
+           "ERR6454473.fasta", "ERR6454474.fasta", "ERR6454475.fasta", "ERR6454476.fasta", 
+           "ERR6454477.fasta", "ERR6454478.fasta"),
+  Uchime_denovo = c(176255, 63595, 65824, 235319, 289378, 104501, 110319, 324860, 252619, 996721, 
+                    152601, 68418, 211543, 210658, 192483, 193727, 216007, 54275),
+  Chimeras_denovo = c(170939, 60830, 61212, 231143, 275937, 102035, 104817, 311684, 237071, 896021, 
+                      151542, 64185, 213087, 202583, 177376, 187675, 206184, 48076),
+  DADA2 = c(252601, 90955, 94351, 365009, 439636, 164875, 166830, 508833, 374654, 966078, 
+            229647, 87814, 306617, 259678, 247668, 298874, 311622, 71099)
+)
+
+# Melt the new data frame to long format for ggplot2
+additional_data_long <- melt(additional_data, id.vars = "FILE", variable.name = "Method", value.name = "Count")
+
+# Create the boxplot with log scale and different colors for the new data
+additional_boxplot <- ggplot(additional_data_long, aes(x = Method, y = Count, fill = Method)) +
+  geom_boxplot(outlier.shape = NA) +
+  scale_y_log10(labels = comma) +  # Use logarithmic scale and format labels
+  labs(title = "nonchimeric reads Counts",
+       x = "Method",
+       y = "Count (log scale)") +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 14),
+    legend.position = "none",
+    panel.grid.major = element_line(size = 0.1, color = "gray"),
+    panel.grid.minor = element_blank(),
+    plot.background = element_rect(fill = "white", color = NA),
+    plot.margin = margin(1, 1, 1, 1, "cm")
+  ) +
+  scale_fill_manual(values = c("#1b9e77", "#d95f02", "#7570b3")) +  # Use a custom color palette
+  geom_jitter(width = 0.2, size = 1, alpha = 0.6)  # Add jitter for data points
+
+# Display the plot
+print(additional_boxplot)
+
+##### non-chimeric reads + BLAST box plot for custom settings #####
+# Load the necessary libraries
+library(ggplot2)
+library(reshape2)
+library(scales)
+
+# Define the new data frame
+new_data <- data.frame(
+  FILE = c("ERR6454461.fasta", "ERR6454462.fasta", "ERR6454463.fasta", "ERR6454464.fasta", 
+           "ERR6454465.fasta", "ERR6454466.fasta", "ERR6454467.fasta", "ERR6454468.fasta", 
+           "ERR6454469.fasta", "ERR6454470.fasta", "ERR6454471.fasta", "ERR6454472.fasta", 
+           "ERR6454473.fasta", "ERR6454474.fasta", "ERR6454475.fasta", "ERR6454476.fasta", 
+           "ERR6454477.fasta", "ERR6454478.fasta"),
+  Uchime_denovo = c(176676, 63706, 65934, 237814, 290092, 104990, 111013, 327232, 255230, 1003766, 
+                    153725, 68738, 212383, 211269, 192938, 193873, 216363, 54320),
+  Chimeras_denovo = c(174795, 63606, 64185, 237089, 285813, 104162, 109186, 325685, 255447, 939056, 
+                      152345, 64341, 218874, 204087, 177562, 194670, 206370, 54016),
+  DADA2 = c(263934, 100016, 102723, 384127, 471039, 171681, 179385, 547796, 426004, 1103263, 
+            232323, 88413, 320800, 264681, 248409, 318179, 312409, 86740)
+)
+
+# Melt the new data frame to long format for ggplot2
+new_data_long <- melt(new_data, id.vars = "FILE", variable.name = "Method", value.name = "Count")
+
+# Create the boxplot with log scale and enhanced styling for the new data
+new_boxplot <- ggplot(new_data_long, aes(x = Method, y = Count, fill = Method)) +
+  geom_boxplot(outlier.shape = NA) +
+  scale_y_log10(labels = comma) +  # Use logarithmic scale and format labels
+  labs(title = "nonchimeric+blast recovered ones",
+       x = "Method",
+       y = "Count (log scale)") +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 14),
+    legend.position = "none",
+    panel.grid.major = element_line(size = 0.1, color = "gray"),
+    panel.grid.minor = element_blank(),
+    plot.background = element_rect(fill = "white", color = NA),
+    plot.margin = margin(1, 1, 1, 1, "cm")
+  ) +
+  scale_fill_brewer(palette = "Set2") +  # Use a color palette from RColorBrewer
+  geom_jitter(width = 0.2, size = 1, alpha = 0.6)  # Add jitter for data points
+
+# Display the plot
+print(new_boxplot)
 
 ##### chimeric reads box plot for deafault settings####
 # Load the necessary libraries
