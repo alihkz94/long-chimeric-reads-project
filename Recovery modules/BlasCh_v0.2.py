@@ -1,8 +1,10 @@
 """
 False positive chimeras recovery for long-read sequencing
 
-UPDATES: This version includes reporting the number of rescued sequences and the time the module takes to finish. 
-Furthermore, it handles CPU management better by running one CPU for each chunk for BLAST.
+UPDATES: 
+-This version includes reporting the number of rescued sequences and the time the module takes to finish. 
+-It handles CPU management better by running one CPU for each chunk for BLAST.
+-BLASTING files now in alphabetical order 
 
 Description:
     This script is designed to recover false positive chimeric sequences from a set of FASTA files based on BLAST results.
@@ -16,7 +18,7 @@ Usage:
 Requirements:
     - Python 3.6+
     - BioPython
-    - BLAST+ (blastn command-line tool)
+    - BLAST+ (Blastn command-line tool)
 
 Dependencies:
     - os
@@ -347,7 +349,7 @@ def main():
     rescued_sequences_count = []
 
     print("Step 3: Filtering sequences based on BLAST results...")
-    for base_name in valid_files:
+    for base_name in sorted(valid_files):  # Sort the files alphabetically
         blast_file = os.path.join(blast_output_dir, f"{base_name}.txt")
         input_file = os.path.join(input_dir, f"{base_name}.fasta")
         
@@ -362,12 +364,12 @@ def main():
             trim_sequences(input_file, output_dir_begin, output_dir_end, nonchimeric_sequences)
     
     print("Step 6: Running BLAST for begin and end directories...")
-    for file_name in os.listdir(output_dir_begin):
+    for file_name in sorted(os.listdir(output_dir_begin)):  # Sort the files alphabetically
         if file_name.endswith(".fasta"):
             print(f"Running BLAST for {file_name} in begin directory...")
             run_blast(os.path.join(output_dir_begin, file_name), db, header, args.cpus)
     
-    for file_name in os.listdir(output_dir_end):
+    for file_name in sorted(os.listdir(output_dir_end)):  # Sort the files alphabetically
         if file_name.endswith(".fasta"):
             print(f"Running BLAST for {file_name} in end directory...")
             run_blast(os.path.join(output_dir_end, file_name), db, header, args.cpus)
@@ -375,7 +377,7 @@ def main():
     print("Step 7: Processing and identifying chimeric sequences...")
     all_nonchimeric_sequences = []
 
-    for base_name in valid_files:
+    for base_name in sorted(valid_files):  # Sort the files alphabetically
         blast_file = os.path.join(blast_output_dir, f"{base_name}.txt")
         input_file = os.path.join(input_dir, f"{base_name}.fasta")
         nonchimeric_sequences = filter_sequences(blast_file)
