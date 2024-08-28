@@ -1,4 +1,51 @@
-# Description: This script is designed to filter chimeric sequences from a set of FASTA files based on BLAST results.
+"""
+False positive chimeras recovery
+
+Description:
+    This script is designed to recover false positive chimeric sequences from a set of FASTA files based on BLAST results.
+    It processes input FASTA files, performs BLAST searches, and identifies non-chimeric sequences based on
+    specified criteria. The script then saves the non-chimeric sequences and performs additional analysis
+    on trimmed sequences.
+
+Usage:
+    python BlasCh_v0.1.py
+
+Requirements:
+    - Python 3.6+
+    - BioPython
+    - BLAST+ (blastn command-line tool)
+
+Dependencies:
+    - os
+    - logging
+    - shutil
+    - subprocess
+    - multiprocessing
+    - Bio (from BioPython)
+
+Input:
+    - FASTA files in the specified input directory
+    - BLAST result files in the specified blast output directory
+    - BLAST database specified by the 'db' variable
+
+Output:
+    - Filtered non-chimeric sequences in the 'rescued_reads' directory
+    - Trimmed sequences and their BLAST results in 'begin' and 'end' directories
+
+Configuration:
+    Modify the following variables at the beginning of the script to customize paths and thresholds:
+    - input_dir: Directory containing input FASTA files
+    - blast_output_dir: Directory containing BLAST result files
+    - output_dir_begin: Directory for storing trimmed sequences (first 100 bases)
+    - output_dir_end: Directory for storing trimmed sequences (last 100 bases)
+    - rescued_dir: Directory for storing non-chimeric sequences
+    - db: Path to the BLAST database
+    - header: BLAST output format specification
+
+Author: Ali Hakimzadeh
+Version: 0.1.0
+Date: 2024-08-25
+"""
 
 # Import necessary libraries
 import os
@@ -11,25 +58,19 @@ from Bio import SeqIO
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Define directories and paths
-input_dir = '/home/ali/Documents/pipe/test/input'
-blast_output_dir = '/home/ali/Documents/pipe/test/blast_output'
-output_dir_begin = '/home/ali/Documents/pipe/test/begin'
-output_dir_end = '/home/ali/Documents/pipe/test/end'
-rescued_dir = '/home/ali/Documents/pipe/test/rescued_reads'
-db = '/home/ali/Documents/pipe/test/database/EUK'
+# Define directory names
+input_dir = 'input'
+blast_output_dir = 'blast_output'
+output_dir_begin = 'begin'
+output_dir_end = 'end'
+rescued_dir = 'false_positive_chimeras'
+db = 'database/EUK'
 header = "qseqid stitle qlen slen qstart qend sstart send evalue length nident mismatch gapopen gaps sstrand qcovs pident"
 
 # Step 1: Clean and create necessary directories
 def clean_directory(directory):
     if os.path.exists(directory):
-        if os.listdir(directory):  # Check if directory is not empty
-            logging.info(f"Directory {directory} exists and is not empty. Deleting old results...")
-            shutil.rmtree(directory)  # Delete the directory and its contents
-        else:
-            logging.info(f"Directory {directory} exists but is empty.")
-    else:
-        logging.info(f"Directory {directory} does not exist. Creating it...")
+        shutil.rmtree(directory)  # Delete the directory and its contents
     os.makedirs(directory, exist_ok=True)  # Recreate the directory
 
 # Clean and create directories
@@ -46,10 +87,10 @@ def check_file_pairs(fasta_dir, blast_dir):
     missing_fastas = blast_files - fasta_files
 
     if missing_blasts:
-        logging.error(f"Missing BLAST results for the following FASTA files: {', '.join(missing_blasts)}")
+        logging.warning(f"Missing BLAST results for the following FASTA files: {', '.join(missing_blasts)}")
     
     if missing_fastas:
-        logging.error(f"Missing FASTA files for the following BLAST results: {', '.join(missing_fastas)}")
+        logging.warning(f"Missing FASTA files for the following BLAST results: {', '.join(missing_fastas)}")
     
     # Return only the files that have pairs
     valid_files = fasta_files & blast_files
@@ -57,14 +98,13 @@ def check_file_pairs(fasta_dir, blast_dir):
 
 # Step 3: Filter sequences based on BLAST results with error handling
 def filter_sequences(blast_file_path, qcov_threshold=99, pident_threshold=99):
-    flagged_sequences = []
     nonchimeric_sequences = []
     
     with open(blast_file_path, 'r') as file:
         lines = file.readlines()
         if not lines:
             logging.warning(f"No BLAST hits found in file: {blast_file_path}")
-            return flagged_sequences, nonchimeric_sequences
+            return nonchimeric_sequences
 
         for line in lines:
             # Skip header lines
@@ -86,12 +126,10 @@ def filter_sequences(blast_file_path, qcov_threshold=99, pident_threshold=99):
             
             if qcov >= qcov_threshold and pident >= pident_threshold:
                 nonchimeric_sequences.append(qseqid)
-            else:
-                flagged_sequences.append(qseqid)
     
-    return flagged_sequences, nonchimeric_sequences
+    return nonchimeric_sequences
 
-# Step 4: Save nonchimeric sequences to the "rescued_reads" folder without line breaks
+# Step 4: Save nonchimeric sequences to the "false_positive_chimeras" folder without line breaks
 def save_nonchimeric_sequences(input_file, nonchimeric_sequences, output_dir):
     base_name = os.path.splitext(os.path.basename(input_file))[0]
     nonchimeric_file = os.path.join(output_dir, f"{base_name}_rescued.fasta")
@@ -99,9 +137,10 @@ def save_nonchimeric_sequences(input_file, nonchimeric_sequences, output_dir):
     with open(input_file) as handle:
         records = [record for record in SeqIO.parse(handle, "fasta") if record.id in nonchimeric_sequences]
 
-    with open(nonchimeric_file, 'w') as output_handle:
-        for record in records:
-            output_handle.write(f">{record.id}\n{str(record.seq)}\n")
+    if records:  # Only write if there are nonchimeric sequences
+        with open(nonchimeric_file, 'w') as output_handle:
+            for record in records:
+                output_handle.write(f">{record.id}\n{str(record.seq)}\n")
 
 # Step 5: Trim sequences and save to separate files
 def trim_sequences(input_file, output_dir_begin, output_dir_end, filtered_sequences):
@@ -114,34 +153,29 @@ def trim_sequences(input_file, output_dir_begin, output_dir_end, filtered_sequen
     trimmed_end = []
 
     for record in records:
+        if len(record.seq) < 2:
+            continue  # Skip sequences that are too short to process
+
         # Trim the first 100 bases
-        if len(record.seq) >= 100:
-            trimmed_begin.append(record[:100])
-        else:
-            # If the sequence is shorter than 100 bases, take the full sequence
-            trimmed_begin.append(record[:])
+        trimmed_begin.append(record[:100] if len(record.seq) >= 100 else record)
 
         # Trim the last 100 bases
-        if len(record.seq) >= 100:
-            trimmed_end.append(record[-100:])
-        else:
-            # If the sequence is shorter than 100 bases, take the full sequence
-            trimmed_end.append(record[:])
+        trimmed_end.append(record[-100:] if len(record.seq) >= 100 else record)
 
-    # Write sequences without line breaks
-    with open(os.path.join(output_dir_begin, f"{base_name}_begin.fasta"), "w") as output_handle:
-        for record in trimmed_begin:
-            output_handle.write(f">{record.id}\n{str(record.seq)}\n")
-
-    with open(os.path.join(output_dir_end, f"{base_name}_end.fasta"), "w") as output_handle:
-        for record in trimmed_end:
-            output_handle.write(f">{record.id}\n{str(record.seq)}\n")
+    if trimmed_begin:
+        SeqIO.write(trimmed_begin, os.path.join(output_dir_begin, f"{base_name}_begin.fasta"), "fasta")
+    if trimmed_end:
+        SeqIO.write(trimmed_end, os.path.join(output_dir_end, f"{base_name}_end.fasta"), "fasta")
 
 # Step 6: Run BLAST on trimmed sequences
 def run_blast(fasta_file, db, header):
     output_dir = os.path.dirname(fasta_file)
     base_name = os.path.splitext(os.path.basename(fasta_file))[0]
     total_seqs = sum(1 for _ in SeqIO.parse(fasta_file, "fasta"))
+
+    if total_seqs == 0:
+        logging.warning(f"BLAST skipped: No sequences found in {fasta_file}")
+        return
 
     num_chunks = 5 if total_seqs <= 500 else 10
     seq_per_chunk = total_seqs // num_chunks
@@ -158,7 +192,12 @@ def run_blast(fasta_file, db, header):
     for i in range(num_chunks):
         chunk_file = f"{output_dir}/{base_name}_chunk_{i + 1}.fasta"
         blast_output = f"{chunk_file}_blast_results.txt"
-        
+
+        # Ensure the chunk file has sequences
+        if not os.path.exists(chunk_file) or os.path.getsize(chunk_file) == 0:
+            logging.warning(f"Skipping BLAST for empty chunk file: {chunk_file}")
+            continue
+
         subprocess.run([
             'blastn',
             '-query', chunk_file,
@@ -183,18 +222,20 @@ def run_blast(fasta_file, db, header):
     with open(combined_output, 'w') as outfile:
         for i in range(num_chunks):
             chunk_file = f"{output_dir}/{base_name}_chunk_{i + 1}.fasta_blast_results.txt"
-            with open(chunk_file) as infile:
-                outfile.write(infile.read())
-            os.remove(chunk_file)
+            if os.path.exists(chunk_file):
+                with open(chunk_file) as infile:
+                    outfile.write(infile.read())
+                os.remove(chunk_file)
     
     dedup_output = f"{output_dir}/{base_name}.txt"
-    with open(combined_output) as infile, open(dedup_output, 'w') as outfile:
-        seen = set()
-        for line in infile:
-            if line.split('+')[0] not in seen:
-                seen.add(line.split('+')[0])
-                outfile.write(line)
-    os.remove(combined_output)
+    if os.path.exists(combined_output):
+        with open(combined_output) as infile, open(dedup_output, 'w') as outfile:
+            seen = set()
+            for line in infile:
+                if line.split('+')[0] not in seen:
+                    seen.add(line.split('+')[0])
+                    outfile.write(line)
+        os.remove(combined_output)
 
 # Step 7: Check database identifiers match between begin and end BLAST results
 def check_database_identifier(begin_blast_line, end_blast_line):
@@ -239,7 +280,6 @@ def parse_blast_file(blast_file_path, qseqid):
                 qend = int(parts[5])
                 sstart = int(parts[6])
                 send = int(parts[7])
-                evalue = float(parts[8])
                 qcov = float(parts[15])
                 pident = float(parts[16])
 
@@ -290,11 +330,12 @@ def main():
         
         nonchimeric_sequences = filter_sequences(blast_file)
 
-        print(f"Step 4: Saving non-chimeric sequences for {base_name}...")
-        save_nonchimeric_sequences(input_file, nonchimeric_sequences, rescued_dir)
-        
-        print(f"Step 5: Trimming sequences for {base_name}...")
-        trim_sequences(input_file, output_dir_begin, output_dir_end, nonchimeric_sequences)
+        if nonchimeric_sequences:
+            print(f"Step 4: Saving non-chimeric sequences for {base_name}...")
+            save_nonchimeric_sequences(input_file, nonchimeric_sequences, rescued_dir)
+            
+            print(f"Step 5: Trimming sequences for {base_name}...")
+            trim_sequences(input_file, output_dir_begin, output_dir_end, nonchimeric_sequences)
     
     print("Step 6: Running BLAST for begin and end directories...")
     for file_name in os.listdir(output_dir_begin):
