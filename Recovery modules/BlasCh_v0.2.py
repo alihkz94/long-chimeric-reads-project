@@ -1,3 +1,57 @@
+"""
+False positive chimeras recovery
+
+UPDATES: This version includes reporting the number of rescued sequences and the time the module takes to finish. 
+Furthermore, it handles CPU management better by running one CPU for each chunk for BLAST.
+
+Description:
+    This script is designed to recover false positive chimeric sequences from a set of FASTA files based on BLAST results.
+    It processes input FASTA files, performs BLAST searches, and identifies non-chimeric sequences based on
+    specified criteria. The script then saves the non-chimeric sequences and performs additional analysis
+    on trimmed sequences.
+
+Usage:
+    python BlasCh_v1.py
+
+Requirements:
+    - Python 3.6+
+    - BioPython
+    - BLAST+ (blastn command-line tool)
+
+Dependencies:
+    - os
+    - logging
+    - shutil
+    - subprocess
+    - multiprocessing
+    - Bio (from BioPython)
+    - time
+
+Input:
+    - FASTA files in the specified input directory
+    - BLAST result files in the specified blast output directory
+    - BLAST database specified by the 'db' variable
+
+Output:
+    - Filtered non-chimeric sequences in the 'rescued_reads' directory
+    - Trimmed sequences and their BLAST results in 'begin' and 'end' directories
+
+Configuration:
+    Modify the following variables at the beginning of the script to customize paths and thresholds:
+    - input_dir: Directory containing input FASTA files
+    - blast_output_dir: Directory containing BLAST result files
+    - output_dir_begin: Directory for storing trimmed sequences (first 100 bases)
+    - output_dir_end: Directory for storing trimmed sequences (last 100 bases)
+    - rescued_dir: Directory for storing non-chimeric sequences
+    - db: Path to the BLAST database
+    - header: BLAST output format specification
+
+Author: Ali Hakimzadeh
+Version: 0.2.0
+Date: 2024-08-28
+"""
+
+# Import necessary libraries
 import os
 import logging
 import shutil
@@ -5,6 +59,7 @@ import subprocess
 import multiprocessing as mp
 from Bio import SeqIO
 import argparse
+import time
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -221,7 +276,7 @@ def check_criteria(qlen, slen, qstart, qend, sstart, send, qcov, pident):
 
 # Step 9: Parse the BLAST output file for a specific sequence
 def parse_blast_file(blast_file_path, qseqid):
-    with open(blast_file_path, 'r') as file):
+    with open(blast_file_path, 'r') as file:
         lines = file.readlines()
         if not lines:
             logging.warning(f"No BLAST hits found for {qseqid} in file: {blast_file_path}")
@@ -278,6 +333,7 @@ def process_qseqid(qseqid):
 
 # Step 11: Main function to run the script
 def main():
+    start_time = time.time()  # Start the timer
     args = parse_args()
 
     print("Step 1: Cleaning directories...")
@@ -337,8 +393,11 @@ def main():
         total_rescued = sum(count for _, count in rescued_sequences_count)
         report.write(f"Total Rescued Sequences: {total_rescued}\n")
 
+    # Report the total time taken
+    elapsed_time = time.time() - start_time
     print(f"Non-chimeric sequences have been rescued and saved in {rescued_dir}")
     print(f"Detailed report saved as {report_file}")
+    print(f"Script completed in {elapsed_time:.2f} seconds")
 
 if __name__ == "__main__":
     main()
