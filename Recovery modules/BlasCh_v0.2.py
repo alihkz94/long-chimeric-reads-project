@@ -115,12 +115,13 @@ def check_file_pairs(fasta_dir, blast_dir):
 # Step 3: Filter sequences based on BLAST results with error handling
 def filter_sequences(blast_file_path, qcov_threshold=99, pident_threshold=99):
     nonchimeric_sequences = []
+    chimeric_candidates = []
     
     with open(blast_file_path, 'r') as file:
         lines = file.readlines()
         if not lines:
             logging.warning(f"No BLAST hits found in file: {blast_file_path}")
-            return nonchimeric_sequences
+            return nonchimeric_sequences, chimeric_candidates
 
         for line in lines:
             # Skip header lines
@@ -142,8 +143,10 @@ def filter_sequences(blast_file_path, qcov_threshold=99, pident_threshold=99):
             
             if qcov >= qcov_threshold and pident >= pident_threshold:
                 nonchimeric_sequences.append(qseqid)
+            else:
+                chimeric_candidates.append(qseqid)  # Mark these sequences for further analysis
     
-    return nonchimeric_sequences
+    return nonchimeric_sequences, chimeric_candidates
 
 # Step 4: Save nonchimeric sequences to the "false_positive_chimeras" folder without line breaks
 def save_nonchimeric_sequences(input_file, nonchimeric_sequences, output_dir):
@@ -349,19 +352,20 @@ def main():
     rescued_sequences_count = []
 
     print("Step 3: Filtering sequences based on BLAST results...")
-    for base_name in sorted(valid_files):  # Sort the files alphabetically
+    for base_name in valid_files:
         blast_file = os.path.join(blast_output_dir, f"{base_name}.txt")
         input_file = os.path.join(input_dir, f"{base_name}.fasta")
         
-        nonchimeric_sequences = filter_sequences(blast_file)
+        # Step 3: Filtering sequences based on BLAST results
+        nonchimeric_sequences, chimeric_candidates = filter_sequences(blast_file)
 
+        # Step 4: Save non-chimeric sequences immediately
         if nonchimeric_sequences:
-            print(f"Step 4: Saving non-chimeric sequences for {base_name}...")
-            rescued_count = save_nonchimeric_sequences(input_file, nonchimeric_sequences, rescued_dir)
-            rescued_sequences_count.append((base_name, rescued_count))
-            
-            print(f"Step 5: Trimming sequences for {base_name}...")
-            trim_sequences(input_file, output_dir_begin, output_dir_end, nonchimeric_sequences)
+            save_nonchimeric_sequences(input_file, nonchimeric_sequences, rescued_dir)
+
+        # Step 5: Process chimeric candidates for further analysis
+        if chimeric_candidates:
+            trim_sequences(input_file, output_dir_begin, output_dir_end, chimeric_candidates)
     
     print("Step 6: Running BLAST for begin and end directories...")
     for file_name in sorted(os.listdir(output_dir_begin)):  # Sort the files alphabetically
