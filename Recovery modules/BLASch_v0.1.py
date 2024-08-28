@@ -8,7 +8,7 @@ Description:
     on trimmed sequences.
 
 Usage:
-    python BlasCh_v0.1.py
+    python BlasCh_v1.py
 
 Requirements:
     - Python 3.6+
@@ -86,12 +86,13 @@ def check_file_pairs(fasta_dir, blast_dir):
     missing_blasts = fasta_files - blast_files
     missing_fastas = blast_files - fasta_files
 
-    if missing_blasts:
+    if missing_blasts or missing_fastas:
         logging.warning(f"Missing BLAST results for the following FASTA files: {', '.join(missing_blasts)}")
-    
-    if missing_fastas:
         logging.warning(f"Missing FASTA files for the following BLAST results: {', '.join(missing_fastas)}")
-    
+        
+        # Stop execution and raise an error
+        raise ValueError("Mismatched FASTA and BLAST files detected. Stopping execution.")
+
     # Return only the files that have pairs
     valid_files = fasta_files & blast_files
     return valid_files
