@@ -1,5 +1,5 @@
 """
-False positive chimeras recovery
+False positive chimeras recovery for long-read sequencing
 
 UPDATES: This version includes reporting the number of rescued sequences and the time the module takes to finish. 
 Furthermore, it handles CPU management better by running one CPU for each chunk for BLAST.
