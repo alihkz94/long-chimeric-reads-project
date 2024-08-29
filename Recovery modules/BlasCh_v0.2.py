@@ -69,41 +69,12 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 # Argument parser for user-specified options
 def parse_args():
     parser = argparse.ArgumentParser(description='Chimeric Sequence Rescue Script')
-    parser.add_argument('--cpus', type=int, default=4, help='Number of CPUs to use for BLAST (default: 4)')
+    parser.add_argument('--cpus', type=int, default=8, help='Number of CPUs to use for BLAST (default: 8)')
     return parser.parse_args()
 
 # Define directory names
 input_dir = 'tmp'
 blast_output_dir = 'blast_tmp'
-output_dir_begin = 'begin'
-output_dir_end = 'end'
-rescued_dir = 'false_positive_chimeras'
-db = 'database/EUK'
-header = "qseqid stitle qlen slen qstart qend sstart send evalue length nident mismatch gapopen gaps sstrand qcovs pident"
-report_file = 'rescue_report.txt'
-
-# Import necessary libraries
-import os
-import logging
-import shutil
-import subprocess
-import multiprocessing as mp
-from Bio import SeqIO
-import argparse
-import time
-
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-# Argument parser for user-specified options
-def parse_args():
-    parser = argparse.ArgumentParser(description='Chimeric Sequence Rescue Script')
-    parser.add_argument('--cpus', type=int, default=4, help='Number of CPUs to use for BLAST (default: 4)')
-    return parser.parse_args()
-
-# Define directory names
-input_dir = 'input'
-blast_output_dir = 'blast_output'
 output_dir_begin = 'begin'
 output_dir_end = 'end'
 rescued_dir = 'false_positive_chimeras'
@@ -255,7 +226,7 @@ def run_blast(fasta_file, db, header, num_cpus):
             '-db', db,
             '-word_size', '7',
             '-task', 'blastn',
-            '-num_threads', '8',  # Use 1 thread per chunk
+            '-num_threads', '1',  # Use 1 thread per chunk
             '-outfmt', f'6 delim=+ {header}',
             '-evalue', '0.001',
             '-strand', 'both',
@@ -393,7 +364,8 @@ def main():
 
         # Step 4: Save non-chimeric sequences immediately
         if nonchimeric_sequences:
-            save_nonchimeric_sequences(input_file, nonchimeric_sequences, rescued_dir)
+            rescued_count = save_nonchimeric_sequences(input_file, nonchimeric_sequences, rescued_dir)
+            rescued_sequences_count.append((base_name, rescued_count))
 
         # Step 5: Process chimeric candidates for further analysis
         if chimeric_candidates:
@@ -416,7 +388,7 @@ def main():
     for base_name in sorted(valid_files):  # Sort the files alphabetically
         blast_file = os.path.join(blast_output_dir, f"{base_name}.txt")
         input_file = os.path.join(input_dir, f"{base_name}.fasta")
-        nonchimeric_sequences = filter_sequences(blast_file)
+        nonchimeric_sequences, _ = filter_sequences(blast_file)
 
         for qseqid in nonchimeric_sequences:
             result = process_qseqid(qseqid)
@@ -427,7 +399,7 @@ def main():
     with open(report_file, 'w') as report:
         report.write("Base Name\tRescued Sequences\n")
         for base_name, count in rescued_sequences_count:
-            report.write(f"{base_name}\t{count}\n")
+            report.write(f"{base_name}.fasta\t{count}\n")
         total_rescued = sum(count for _, count in rescued_sequences_count)
         report.write(f"Total Rescued Sequences: {total_rescued}\n")
 
