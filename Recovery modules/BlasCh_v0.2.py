@@ -73,6 +73,35 @@ def parse_args():
     return parser.parse_args()
 
 # Define directory names
+input_dir = 'tmp'
+blast_output_dir = 'blast_tmp'
+output_dir_begin = 'begin'
+output_dir_end = 'end'
+rescued_dir = 'false_positive_chimeras'
+db = 'database/EUK'
+header = "qseqid stitle qlen slen qstart qend sstart send evalue length nident mismatch gapopen gaps sstrand qcovs pident"
+report_file = 'rescue_report.txt'
+
+# Import necessary libraries
+import os
+import logging
+import shutil
+import subprocess
+import multiprocessing as mp
+from Bio import SeqIO
+import argparse
+import time
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Argument parser for user-specified options
+def parse_args():
+    parser = argparse.ArgumentParser(description='Chimeric Sequence Rescue Script')
+    parser.add_argument('--cpus', type=int, default=4, help='Number of CPUs to use for BLAST (default: 4)')
+    return parser.parse_args()
+
+# Define directory names
 input_dir = 'input'
 blast_output_dir = 'blast_output'
 output_dir_begin = 'begin'
@@ -226,7 +255,7 @@ def run_blast(fasta_file, db, header, num_cpus):
             '-db', db,
             '-word_size', '7',
             '-task', 'blastn',
-            '-num_threads', '1',  # Use 1 thread per chunk
+            '-num_threads', '8',  # Use 1 thread per chunk
             '-outfmt', f'6 delim=+ {header}',
             '-evalue', '0.001',
             '-strand', 'both',
@@ -312,6 +341,9 @@ def parse_blast_file(blast_file_path, qseqid):
 
 # Step 10: Process each qseqid and determine chimeric/non-chimeric status
 def process_qseqid(qseqid):
+    if isinstance(qseqid, list):
+        qseqid = qseqid[0]  # Extract the first element if it's a list
+    
     base_name = qseqid.split('.')[0]
     blast_file_begin = os.path.join(output_dir_begin, f"{base_name}_begin.txt")
     blast_file_end = os.path.join(output_dir_end, f"{base_name}_end.txt")
