@@ -188,7 +188,7 @@ def trim_sequences(input_file, output_dir_begin, output_dir_end, filtered_sequen
     if trimmed_end:
         SeqIO.write(trimmed_end, os.path.join(output_dir_end, f"{base_name}_end.fasta"), "fasta")
 
-# Step 6: Run BLAST on trimmed sequences
+# Step 6: Run BLAST on trimmed sequences and clean up chunks
 def run_blast(fasta_file, db, header, num_cpus):
     output_dir = os.path.dirname(fasta_file)
     base_name = os.path.splitext(os.path.basename(fasta_file))[0]
@@ -202,17 +202,19 @@ def run_blast(fasta_file, db, header, num_cpus):
     seq_per_chunk = total_seqs // num_chunks if total_seqs >= num_chunks else 1
 
     # Split the FASTA file into chunks
+    chunk_files = []
     with open(fasta_file) as f:
         records = list(SeqIO.parse(f, "fasta"))
         for i in range(num_chunks):
             chunk_records = records[i * seq_per_chunk:(i + 1) * seq_per_chunk]
             chunk_file = f"{output_dir}/{base_name}_chunk_{i + 1}.fasta"
             SeqIO.write(chunk_records, chunk_file, "fasta")
+            chunk_files.append(chunk_file)
     
     # Run BLAST for each chunk in parallel
     processes = []
     for i in range(num_chunks):
-        chunk_file = f"{output_dir}/{base_name}_chunk_{i + 1}.fasta"
+        chunk_file = chunk_files[i]
         blast_output = f"{chunk_file}_blast_results.txt"
 
         # Ensure the chunk file has sequences
@@ -244,12 +246,13 @@ def run_blast(fasta_file, db, header, num_cpus):
     combined_output = f"{output_dir}/combined_blast_top10hit.txt"
     with open(combined_output, 'w') as outfile:
         for i in range(num_chunks):
-            chunk_file = f"{output_dir}/{base_name}_chunk_{i + 1}.fasta_blast_results.txt"
-            if os.path.exists(chunk_file):
-                with open(chunk_file) as infile:
+            chunk_file = chunk_files[i]
+            chunk_blast_output = f"{chunk_file}_blast_results.txt"
+            if os.path.exists(chunk_blast_output):
+                with open(chunk_blast_output) as infile:
                     outfile.write(infile.read())
-                os.remove(chunk_file)
-    
+                os.remove(chunk_blast_output)  # Remove the individual BLAST output chunk files
+
     dedup_output = f"{output_dir}/{base_name}.txt"
     if os.path.exists(combined_output):
         with open(combined_output) as infile, open(dedup_output, 'w') as outfile:
@@ -258,7 +261,12 @@ def run_blast(fasta_file, db, header, num_cpus):
                 if line.split('+')[0] not in seen:
                     seen.add(line.split('+')[0])
                     outfile.write(line)
-        os.remove(combined_output)
+        os.remove(combined_output)  # Remove the combined output file
+
+    # Cleanup: Remove chunk files after processing
+    for chunk_file in chunk_files:
+        if os.path.exists(chunk_file):
+            os.remove(chunk_file)
 
 # Step 7: Check database identifiers match between begin and end BLAST results
 def check_database_identifier(begin_blast_line, end_blast_line):
