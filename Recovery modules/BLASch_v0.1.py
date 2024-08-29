@@ -22,6 +22,7 @@ Dependencies:
     - subprocess
     - multiprocessing
     - Bio (from BioPython)
+    -time
 
 Input:
     - FASTA files in the specified input directory
