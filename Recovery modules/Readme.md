@@ -16,7 +16,6 @@ Please read the ReChime_RUNME.txt file for the instructions in the **ReChime_v1.
 # 🧬 BlasCh recovery module for recovering False positive chimeras 
 
 [![Python Version](https://img.shields.io/badge/python-3.6%2B-blue)](https://www.python.org/downloads/)
-[![License](https://img.shields.io/badge/license-MIT-green)](https://opensource.org/licenses/MIT)
 
 Efficient chimera detection for long-read sequencing data using multiprocessing.
 
