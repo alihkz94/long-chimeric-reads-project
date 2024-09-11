@@ -1,5 +1,5 @@
 """
-Improved Multiprocessing Chimera Detection for Long-Read Sequencing
+Improved Multiprocessing Chimera recovery for Long-Read Sequencing
 
 UPDATES:
 - Implemented multiprocessing for faster processing of multiple BLAST XML files.
