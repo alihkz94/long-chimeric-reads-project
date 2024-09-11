@@ -1,5 +1,10 @@
 """
-False positive chimeras recovery
+False positive chimeras recovery for long-read sequencing
+
+UPDATES: 
+-This version includes reporting the number of rescued sequences and the time the module takes to finish. 
+-It handles CPU management better by running one CPU for each chunk for BLAST.
+-BLASTING files now in alphabetical order 
 
 Description:
     This script is designed to recover false positive chimeric sequences from a set of FASTA files based on BLAST results.
@@ -13,7 +18,7 @@ Usage:
 Requirements:
     - Python 3.6+
     - BioPython
-    - BLAST+ (blastn command-line tool)
+    - BLAST+ (Blastn command-line tool)
 
 Dependencies:
     - os
@@ -22,7 +27,7 @@ Dependencies:
     - subprocess
     - multiprocessing
     - Bio (from BioPython)
-    -time
+    - time
 
 Input:
     - FASTA files in the specified input directory
@@ -44,8 +49,8 @@ Configuration:
     - header: BLAST output format specification
 
 Author: Ali Hakimzadeh
-Version: 0.1.0
-Date: 2024-08-25
+Version: 0.2.0
+Date: 2024-08-28
 """
 
 # Import necessary libraries
@@ -55,18 +60,27 @@ import shutil
 import subprocess
 import multiprocessing as mp
 from Bio import SeqIO
+import argparse
+import time
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+# Argument parser for user-specified options
+def parse_args():
+    parser = argparse.ArgumentParser(description='Chimeric Sequence Rescue Script')
+    parser.add_argument('--cpus', type=int, default=8, help='Number of CPUs to use for BLAST (default: 8)')
+    return parser.parse_args()
+
 # Define directory names
-input_dir = 'input'
-blast_output_dir = 'blast_output'
+input_dir = 'tmp'
+blast_output_dir = 'blast_tmp'
 output_dir_begin = 'begin'
 output_dir_end = 'end'
 rescued_dir = 'false_positive_chimeras'
 db = 'database/EUK'
 header = "qseqid stitle qlen slen qstart qend sstart send evalue length nident mismatch gapopen gaps sstrand qcovs pident"
+report_file = 'rescue_report.txt'
 
 # Step 1: Clean and create necessary directories
 def clean_directory(directory):
@@ -101,12 +115,13 @@ def check_file_pairs(fasta_dir, blast_dir):
 # Step 3: Filter sequences based on BLAST results with error handling
 def filter_sequences(blast_file_path, qcov_threshold=99, pident_threshold=99):
     nonchimeric_sequences = []
+    chimeric_candidates = []
     
     with open(blast_file_path, 'r') as file:
         lines = file.readlines()
         if not lines:
             logging.warning(f"No BLAST hits found in file: {blast_file_path}")
-            return nonchimeric_sequences
+            return nonchimeric_sequences, chimeric_candidates
 
         for line in lines:
             # Skip header lines
@@ -128,8 +143,10 @@ def filter_sequences(blast_file_path, qcov_threshold=99, pident_threshold=99):
             
             if qcov >= qcov_threshold and pident >= pident_threshold:
                 nonchimeric_sequences.append(qseqid)
+            else:
+                chimeric_candidates.append(qseqid)  # Mark these sequences for further analysis
     
-    return nonchimeric_sequences
+    return nonchimeric_sequences, chimeric_candidates
 
 # Step 4: Save nonchimeric sequences to the "false_positive_chimeras" folder without line breaks
 def save_nonchimeric_sequences(input_file, nonchimeric_sequences, output_dir):
@@ -143,6 +160,8 @@ def save_nonchimeric_sequences(input_file, nonchimeric_sequences, output_dir):
         with open(nonchimeric_file, 'w') as output_handle:
             for record in records:
                 output_handle.write(f">{record.id}\n{str(record.seq)}\n")
+    
+    return len(records)  # Return the number of rescued sequences
 
 # Step 5: Trim sequences and save to separate files
 def trim_sequences(input_file, output_dir_begin, output_dir_end, filtered_sequences):
@@ -169,8 +188,8 @@ def trim_sequences(input_file, output_dir_begin, output_dir_end, filtered_sequen
     if trimmed_end:
         SeqIO.write(trimmed_end, os.path.join(output_dir_end, f"{base_name}_end.fasta"), "fasta")
 
-# Step 6: Run BLAST on trimmed sequences
-def run_blast(fasta_file, db, header):
+# Step 6: Run BLAST on trimmed sequences and clean up chunks
+def run_blast(fasta_file, db, header, num_cpus):
     output_dir = os.path.dirname(fasta_file)
     base_name = os.path.splitext(os.path.basename(fasta_file))[0]
     total_seqs = sum(1 for _ in SeqIO.parse(fasta_file, "fasta"))
@@ -179,20 +198,23 @@ def run_blast(fasta_file, db, header):
         logging.warning(f"BLAST skipped: No sequences found in {fasta_file}")
         return
 
-    num_chunks = 5 if total_seqs <= 500 else 10
-    seq_per_chunk = total_seqs // num_chunks
+    num_chunks = num_cpus  # Set number of chunks to match the number of CPUs
+    seq_per_chunk = total_seqs // num_chunks if total_seqs >= num_chunks else 1
 
     # Split the FASTA file into chunks
+    chunk_files = []
     with open(fasta_file) as f:
         records = list(SeqIO.parse(f, "fasta"))
         for i in range(num_chunks):
             chunk_records = records[i * seq_per_chunk:(i + 1) * seq_per_chunk]
             chunk_file = f"{output_dir}/{base_name}_chunk_{i + 1}.fasta"
             SeqIO.write(chunk_records, chunk_file, "fasta")
+            chunk_files.append(chunk_file)
     
-    # Run BLAST for each chunk
+    # Run BLAST for each chunk in parallel
+    processes = []
     for i in range(num_chunks):
-        chunk_file = f"{output_dir}/{base_name}_chunk_{i + 1}.fasta"
+        chunk_file = chunk_files[i]
         blast_output = f"{chunk_file}_blast_results.txt"
 
         # Ensure the chunk file has sequences
@@ -200,13 +222,13 @@ def run_blast(fasta_file, db, header):
             logging.warning(f"Skipping BLAST for empty chunk file: {chunk_file}")
             continue
 
-        subprocess.run([
+        p = subprocess.Popen([
             'blastn',
             '-query', chunk_file,
             '-db', db,
             '-word_size', '7',
             '-task', 'blastn',
-            '-num_threads', '8',
+            '-num_threads', '1',  # Use 1 thread per chunk
             '-outfmt', f'6 delim=+ {header}',
             '-evalue', '0.001',
             '-strand', 'both',
@@ -214,21 +236,23 @@ def run_blast(fasta_file, db, header):
             '-max_hsps', '1',
             '-out', blast_output
         ])
-        
-        # Add header to the output file
-        subprocess.run(['sed', '-i', f'1i{header}', blast_output])
-        os.remove(chunk_file)
+        processes.append(p)
     
+    # Wait for all processes to complete
+    for p in processes:
+        p.wait()
+
     # Combine and deduplicate the results
     combined_output = f"{output_dir}/combined_blast_top10hit.txt"
     with open(combined_output, 'w') as outfile:
         for i in range(num_chunks):
-            chunk_file = f"{output_dir}/{base_name}_chunk_{i + 1}.fasta_blast_results.txt"
-            if os.path.exists(chunk_file):
-                with open(chunk_file) as infile:
+            chunk_file = chunk_files[i]
+            chunk_blast_output = f"{chunk_file}_blast_results.txt"
+            if os.path.exists(chunk_blast_output):
+                with open(chunk_blast_output) as infile:
                     outfile.write(infile.read())
-                os.remove(chunk_file)
-    
+                os.remove(chunk_blast_output)  # Remove the individual BLAST output chunk files
+
     dedup_output = f"{output_dir}/{base_name}.txt"
     if os.path.exists(combined_output):
         with open(combined_output) as infile, open(dedup_output, 'w') as outfile:
@@ -237,7 +261,12 @@ def run_blast(fasta_file, db, header):
                 if line.split('+')[0] not in seen:
                     seen.add(line.split('+')[0])
                     outfile.write(line)
-        os.remove(combined_output)
+        os.remove(combined_output)  # Remove the combined output file
+
+    # Cleanup: Remove chunk files after processing
+    for chunk_file in chunk_files:
+        if os.path.exists(chunk_file):
+            os.remove(chunk_file)
 
 # Step 7: Check database identifiers match between begin and end BLAST results
 def check_database_identifier(begin_blast_line, end_blast_line):
@@ -291,6 +320,9 @@ def parse_blast_file(blast_file_path, qseqid):
 
 # Step 10: Process each qseqid and determine chimeric/non-chimeric status
 def process_qseqid(qseqid):
+    if isinstance(qseqid, list):
+        qseqid = qseqid[0]  # Extract the first element if it's a list
+    
     base_name = qseqid.split('.')[0]
     blast_file_begin = os.path.join(output_dir_begin, f"{base_name}_begin.txt")
     blast_file_end = os.path.join(output_dir_end, f"{base_name}_end.txt")
@@ -317,6 +349,9 @@ def process_qseqid(qseqid):
 
 # Step 11: Main function to run the script
 def main():
+    start_time = time.time()  # Start the timer
+    args = parse_args()
+
     print("Step 1: Cleaning directories...")
     clean_directory(output_dir_begin)
     clean_directory(output_dir_end)
@@ -325,45 +360,62 @@ def main():
     print("Step 2: Checking for matching FASTA and BLAST result files...")
     valid_files = check_file_pairs(input_dir, blast_output_dir)
     
+    rescued_sequences_count = []
+
     print("Step 3: Filtering sequences based on BLAST results...")
     for base_name in valid_files:
         blast_file = os.path.join(blast_output_dir, f"{base_name}.txt")
         input_file = os.path.join(input_dir, f"{base_name}.fasta")
         
-        nonchimeric_sequences = filter_sequences(blast_file)
+        # Step 3: Filtering sequences based on BLAST results
+        nonchimeric_sequences, chimeric_candidates = filter_sequences(blast_file)
 
+        # Step 4: Save non-chimeric sequences immediately
         if nonchimeric_sequences:
-            print(f"Step 4: Saving non-chimeric sequences for {base_name}...")
-            save_nonchimeric_sequences(input_file, nonchimeric_sequences, rescued_dir)
-            
-            print(f"Step 5: Trimming sequences for {base_name}...")
-            trim_sequences(input_file, output_dir_begin, output_dir_end, nonchimeric_sequences)
+            rescued_count = save_nonchimeric_sequences(input_file, nonchimeric_sequences, rescued_dir)
+            rescued_sequences_count.append((base_name, rescued_count))
+
+        # Step 5: Process chimeric candidates for further analysis
+        if chimeric_candidates:
+            trim_sequences(input_file, output_dir_begin, output_dir_end, chimeric_candidates)
     
     print("Step 6: Running BLAST for begin and end directories...")
-    for file_name in os.listdir(output_dir_begin):
+    for file_name in sorted(os.listdir(output_dir_begin)):  # Sort the files alphabetically
         if file_name.endswith(".fasta"):
             print(f"Running BLAST for {file_name} in begin directory...")
-            run_blast(os.path.join(output_dir_begin, file_name), db, header)
+            run_blast(os.path.join(output_dir_begin, file_name), db, header, args.cpus)
     
-    for file_name in os.listdir(output_dir_end):
+    for file_name in sorted(os.listdir(output_dir_end)):  # Sort the files alphabetically
         if file_name.endswith(".fasta"):
             print(f"Running BLAST for {file_name} in end directory...")
-            run_blast(os.path.join(output_dir_end, file_name), db, header)
+            run_blast(os.path.join(output_dir_end, file_name), db, header, args.cpus)
     
     print("Step 7: Processing and identifying chimeric sequences...")
     all_nonchimeric_sequences = []
 
-    for base_name in valid_files:
+    for base_name in sorted(valid_files):  # Sort the files alphabetically
         blast_file = os.path.join(blast_output_dir, f"{base_name}.txt")
         input_file = os.path.join(input_dir, f"{base_name}.fasta")
-        nonchimeric_sequences = filter_sequences(blast_file)
+        nonchimeric_sequences, _ = filter_sequences(blast_file)
 
         for qseqid in nonchimeric_sequences:
             result = process_qseqid(qseqid)
             if result:
                 all_nonchimeric_sequences.append(result)
 
+    # Generate and save the detailed report
+    with open(report_file, 'w') as report:
+        report.write("Base Name\tRescued Sequences\n")
+        for base_name, count in rescued_sequences_count:
+            report.write(f"{base_name}.fasta\t{count}\n")
+        total_rescued = sum(count for _, count in rescued_sequences_count)
+        report.write(f"Total Rescued Sequences: {total_rescued}\n")
+
+    # Report the total time taken
+    elapsed_time = time.time() - start_time
     print(f"Non-chimeric sequences have been rescued and saved in {rescued_dir}")
+    print(f"Detailed report saved as {report_file}")
+    print(f"Script completed in {elapsed_time:.2f} seconds")
 
 if __name__ == "__main__":
     main()
