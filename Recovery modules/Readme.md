@@ -48,6 +48,59 @@ HIGH_COVERAGE_THRESHOLD = 99.0
 SIGNIFICANT_COVERAGE_THRESHOLD = 80.0
 SIGNIFICANT_IDENTITY_THRESHOLD = 80.0
 ```
+BLAST Alignment Thresholds Explanation
+The script uses two sets of thresholds to categorize BLAST alignments:
+
+High Identity Thresholds:
+
+Identity >= 99% and Coverage >= 99%
+
+
+Significant Alignments Thresholds:
+
+Coverage >= 80% and Identity >= 80%
+
+
+
+Why Two Sets of Thresholds?
+These two sets of thresholds serve different purposes in the chimera detection process:
+
+High Identity Thresholds (99%/99%):
+
+Purpose: To identify nearly perfect matches.
+Interpretation: Alignments meeting these criteria suggest that the query sequence is almost identical to a known sequence in the database.
+Use in classification: Used to detect potential false positive chimeras or uncertain chimeras.
+
+
+Significant Alignments Thresholds (80%/80%):
+
+Purpose: To identify meaningful, but not necessarily perfect, matches.
+Interpretation: Alignments meeting these criteria suggest that a substantial portion of the query sequence is similar to a known sequence, but allows for some differences.
+Use in classification: Used to detect potential absolute chimeras or uncertain chimeras.
+
+
+
+How the Thresholds Work
+For each alignment in the BLAST results:
+
+Calculate query coverage: (alignment length / query sequence length) * 100
+Calculate identity percentage: (number of identical matches / alignment length) * 100
+Compare these values to the thresholds:
+
+If both values meet or exceed the high identity thresholds (99%/99%), categorize as a "high identity" alignment.
+If both values meet or exceed the significant alignment thresholds (80%/80%), but don't meet the high identity thresholds, categorize as a "significant" alignment.
+If neither set of thresholds is met, the alignment is not considered further in the chimera classification process.
+
+
+
+Impact on Classification
+
+Sequences with one or more high identity alignments are classified as either false positive chimeras or uncertain chimeras, depending on whether the alignments are to different species.
+Sequences with multiple significant alignments (but no high identity alignments) are classified as absolute chimeras.
+Sequences with only one significant alignment are classified as uncertain chimeras.
+Sequences with no high identity or significant alignments are classified as non-chimeric.
+
+This two-tiered approach allows the script to distinguish between nearly identical matches and merely significant matches, providing a more nuanced classification of potential chimeric sequences.
 
 ## 📂 Directory Structure
 
