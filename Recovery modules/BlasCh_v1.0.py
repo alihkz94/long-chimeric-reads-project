@@ -32,10 +32,11 @@ Dependencies:
     - Bio.SeqIO (from BioPython)
     - collections (defaultdict)
     - logging
+    - csv
 
 Input:
     - FASTA files in the specified input directory
-    - BLAST XML result files in the current directory
+    - BLAST XML result files in the specified directory
 
 Output:
     - Classified sequences in separate FASTA files within the output directory
@@ -68,6 +69,7 @@ from Bio.Blast import NCBIXML
 from Bio import SeqIO
 from collections import defaultdict
 import logging
+import csv
 
 # Configure logging to output process information
 logging.basicConfig(level=logging.DEBUG, format='%(processName)s: %(message)s')
@@ -104,8 +106,8 @@ def extract_query_id(blast_query_def):
     return blast_query_def
 
 def parse_blast_results(args):
-    """Parse BLAST XML results and classify sequences into different categories."""
-    xml_file, temp_dir, fasta_file = args
+    """Parse BLAST XML results and classify sequences into different categories, and save sequence details in CSV format."""
+    xml_file, temp_dir, temp_2_dir, fasta_file = args
     logging.debug(f"Starting processing for {xml_file}")
     
     fasta_sequences = load_fasta_sequences(fasta_file)
@@ -114,6 +116,8 @@ def parse_blast_results(args):
     absolute_chimeras = set()
     uncertain_chimeras = set()
     non_chimeric_sequences = set()
+
+    sequence_details = []  # To store sequence details for CSV
 
     with open(xml_file) as result_handle:
         blast_records = list(NCBIXML.parse(result_handle))
@@ -130,9 +134,11 @@ def parse_blast_results(args):
                 hit_id = extract_query_id(alignment.hit_def)
                 if hit_id != query_id:  # Exclude self-hits
                     for hsp in alignment.hsps:
-                        query_coverage = (hsp.align_length / blast_record.query_length) * 100
+                        query_coverage = min((hsp.align_length / blast_record.query_length) * 100, 100)
                         identity_percentage = (hsp.identities / hsp.align_length) * 100
                         
+                        sequence_details.append([query_id, query_coverage, identity_percentage])  # Store in list
+
                         if identity_percentage >= HIGH_IDENTITY_THRESHOLD and query_coverage >= HIGH_COVERAGE_THRESHOLD:
                             high_identity_alignments.append((alignment, hsp))
                         elif query_coverage >= SIGNIFICANT_COVERAGE_THRESHOLD and identity_percentage >= SIGNIFICANT_IDENTITY_THRESHOLD:
@@ -156,6 +162,13 @@ def parse_blast_results(args):
         write_sequences_to_file(false_positive_chimeras, fasta_sequences, os.path.join(temp_dir, f"{base_filename}_false_positive_chimeras.fasta"))
         write_sequences_to_file(non_chimeric_sequences, fasta_sequences, os.path.join(temp_dir, f"{base_filename}_non_chimeric.fasta"))
     
+        # Write the sequence details (ID, coverage, identity) to CSV in temp_2
+        csv_file_path = os.path.join(temp_2_dir, f"{base_filename}_sequence_details.csv")
+        with open(csv_file_path, 'w', newline='') as csvfile:
+            csvwriter = csv.writer(csvfile)
+            csvwriter.writerow(["Sequence ID", "Query Coverage (%)", "Identity Percentage (%)"])
+            csvwriter.writerows(sequence_details)
+
     logging.debug(f"Completed processing for {xml_file}")
     return false_positive_chimeras, absolute_chimeras, uncertain_chimeras, non_chimeric_sequences
 
@@ -228,16 +241,19 @@ def generate_report(all_false_positive_chimeras, all_absolute_chimeras, all_unce
             report_file.write(f"  Total: {file_total}\n")
             report_file.write(f"  Total Recovered Sequences: {recovered_sequences}\n")  # Add this line for recovered sequences
 
-def process_all_xml_files(directory, temp_dir, output_dir, input_dir):
+def process_all_xml_files(directory, temp_dir, temp_2_dir, output_dir, input_dir):
     """Process all BLAST XML files and generate final outputs."""
     # Clean up existing directories if they exist
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir)
+    if os.path.exists(temp_2_dir):
+        shutil.rmtree(temp_2_dir)
     if os.path.exists(output_dir):
         shutil.rmtree(output_dir)
 
     # Recreate directories after cleanup
     os.makedirs(temp_dir, exist_ok=True)
+    os.makedirs(temp_2_dir, exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
 
     args_list = []
@@ -255,7 +271,7 @@ def process_all_xml_files(directory, temp_dir, output_dir, input_dir):
         if filename.endswith("_blast_results.xml"):
             xml_file = os.path.join(directory, filename)
             fasta_file = os.path.join(input_dir, filename.replace("_blast_results.xml", ".chimeras.fasta"))
-            args_list.append((xml_file, temp_dir, fasta_file))
+            args_list.append((xml_file, temp_dir, temp_2_dir, fasta_file))
 
     logging.debug(f"Using {NUM_PROCESSES} processes for multiprocessing")
     
@@ -288,19 +304,22 @@ def process_all_xml_files(directory, temp_dir, output_dir, input_dir):
 
     # Clean up temporary folder after processing
 #    shutil.rmtree(temp_dir)
+#    shutil.rmtree(temp_2_dir)
 
     end_time = time.time()
     elapsed_time = end_time - start_time
     logging.info(f"Total time taken: {elapsed_time:.2f} seconds")
 
+
 if __name__ == "__main__":
     input_dir = "./xml_uchime/input"
     directory = "./xml_uchime"
     temp_dir = "./xml_uchime/temp"
+    temp_2_dir = "./xml_uchime/temp_2"
     output_dir = "./xml_uchime/rescued_reads"
 
     try:
-        process_all_xml_files(directory, temp_dir, output_dir, input_dir)
+        process_all_xml_files(directory, temp_dir, temp_2_dir, output_dir, input_dir)
         print("Processing complete. Check the rescued_reads folder for final results.")
     except Exception as e:
         logging.error(f"An error occurred during processing: {e}")
