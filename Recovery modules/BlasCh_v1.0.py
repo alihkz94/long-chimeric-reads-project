@@ -11,8 +11,8 @@ UPDATES:
 Description:
     This script processes BLAST XML results to identify and classify chimeric sequences in long-read sequencing data.
     It categorizes sequences as false positive chimeras, absolute chimeras, uncertain chimeras, or non-chimeric sequences
-    based on specified alignment criteria. The script utilizes multiprocessing for efficient handling of large datasets
-    and includes system resource usage monitoring.
+    based on specified alignment criteria. The script utilizes multiprocessing to handle large datasets efficiently
+    and includes monitoring system resource usage.
 
 Usage:
     python BlasCh.py
