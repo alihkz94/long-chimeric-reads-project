@@ -179,7 +179,7 @@ def combine_sequences(temp_dir, base_filename, output_dir):
 
 def generate_report(all_false_positive_chimeras, all_absolute_chimeras, all_uncertain_chimeras, all_non_chimeric_sequences, file_results, output_dir):
     """
-    Generate a detailed report summarizing the results.
+    Generate a detailed report summarizing the results, sorted by file name.
     
     Args:
         all_false_positive_chimeras (set): Set of all false positive chimeras.
@@ -210,13 +210,18 @@ def generate_report(all_false_positive_chimeras, all_absolute_chimeras, all_unce
         
         report_file.write("Detailed Results by File:\n")
         report_file.write("-------------------------\n")
-        for file, results in file_results.items():
+        
+        # Sort the file_results dictionary by keys (file names)
+        sorted_file_results = dict(sorted(file_results.items()))
+        
+        for file, results in sorted_file_results.items():
             report_file.write(f"\nFile: {file}\n")
             file_total = sum(results.values())
             for category, count in results.items():
                 percentage = (count / file_total) * 100 if file_total > 0 else 0
                 report_file.write(f"  {category}: {count} ({percentage:.2f}%)\n")
             report_file.write(f"  Total: {file_total}\n")
+
 
 def process_all_xml_files(directory, temp_dir, output_dir, input_dir):
     """Process all BLAST XML files and generate final outputs."""
@@ -277,17 +282,17 @@ def process_all_xml_files(directory, temp_dir, output_dir, input_dir):
     log_system_usage()  # Log final system usage
 
     # Clean up temporary folder after processing
-    shutil.rmtree(temp_dir)
+#    shutil.rmtree(temp_dir)
 
     end_time = time.time()
     elapsed_time = end_time - start_time
     logging.info(f"Total time taken: {elapsed_time:.2f} seconds")
 
 if __name__ == "__main__":
-    input_dir = "./input"
-    directory = "."
-    temp_dir = "./temp"
-    output_dir = "./rescued_reads"
+    input_dir = "./xml_uchime/input"
+    directory = "./xml_uchime"
+    temp_dir = "./xml_uchime/temp"
+    output_dir = "./xml_uchime/rescued_reads"
 
     try:
         process_all_xml_files(directory, temp_dir, output_dir, input_dir)
