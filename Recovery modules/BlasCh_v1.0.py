@@ -56,7 +56,7 @@ Configuration:
 
 Author: ALI HAKIMZADEH
 Version: 1.0
-Date: 2024-09-11
+Date: 2024-09-13
 """
 # Load Libraries 
 import os
@@ -217,11 +217,16 @@ def generate_report(all_false_positive_chimeras, all_absolute_chimeras, all_unce
         for file, results in sorted_file_results.items():
             report_file.write(f"\nFile: {file}\n")
             file_total = sum(results.values())
+            
+            # Calculate the recovered sequences
+            recovered_sequences = results["False Positive Chimeras"] + results["Non-Chimeric Sequences"]
+            
             for category, count in results.items():
                 percentage = (count / file_total) * 100 if file_total > 0 else 0
                 report_file.write(f"  {category}: {count} ({percentage:.2f}%)\n")
+                
             report_file.write(f"  Total: {file_total}\n")
-
+            report_file.write(f"  Total Recovered Sequences: {recovered_sequences}\n")  # Add this line for recovered sequences
 
 def process_all_xml_files(directory, temp_dir, output_dir, input_dir):
     """Process all BLAST XML files and generate final outputs."""
