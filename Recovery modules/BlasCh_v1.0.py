@@ -11,8 +11,8 @@ UPDATES:
 Description:
     This script processes BLAST XML results to identify and classify chimeric sequences in long-read sequencing data.
     It categorizes sequences as false positive chimeras, absolute chimeras, uncertain chimeras, or non-chimeric sequences
-    based on specified alignment criteria. The script utilizes multiprocessing to handle large datasets efficiently
-    and includes monitoring system resource usage.
+    based on specified alignment criteria. The script utilizes multiprocessing for efficient handling of large datasets
+    and includes system resource usage monitoring.
 
 Usage:
     python BlasCh.py
@@ -32,7 +32,6 @@ Dependencies:
     - Bio.SeqIO (from BioPython)
     - collections (defaultdict)
     - logging
-    - csv
 
 Input:
     - FASTA files in the specified input directory
@@ -312,11 +311,11 @@ def process_all_xml_files(directory, temp_dir, temp_2_dir, output_dir, input_dir
 
 
 if __name__ == "__main__":
-    input_dir = "./xml_uchime/input"
-    directory = "./xml_uchime"
-    temp_dir = "./xml_uchime/temp"
-    temp_2_dir = "./xml_uchime/temp_2"
-    output_dir = "./xml_uchime/rescued_reads"
+    input_dir = "./input"
+    directory = "."
+    temp_dir = "./temp"
+    temp_2_dir = "./temp_2"
+    output_dir = "./rescued_reads"
 
     try:
         process_all_xml_files(directory, temp_dir, temp_2_dir, output_dir, input_dir)
