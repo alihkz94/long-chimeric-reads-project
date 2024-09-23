@@ -76,11 +76,11 @@ These two sets of thresholds serve different purposes in the chimera detection p
 
 For each alignment in the BLAST results:
 
-1. Calculate query coverage: (alignment length / query sequence length) * 100
-2. Calculate identity percentage: (number of identical matches / alignment length) * 100
+1. Calculate query coverage: (alignment length/query sequence length) * 100
+2. Calculate identity percentage: (number of identical matches/alignment length) * 100
 3. Compare these values to the thresholds:
-   - If both values meet or exceed the high identity thresholds (99%/99%), categorize as a "high identity" alignment.
-   - If both values meet or exceed the significant alignment thresholds (80%/80%), but don't meet the high identity thresholds, categorize as a "significant" alignment.
+   - If both values meet or exceed the high identity thresholds (99%/99%), categorize them as a "high identity" alignment.
+   - If both values meet or exceed the significant alignment thresholds (80%/80%) but don't meet the high identity thresholds, categorize them as a "significant" alignment.
    - If neither set of thresholds is met, the alignment is not considered further in the chimera classification process.
 
 ## Impact on Classification
@@ -92,6 +92,21 @@ For each alignment in the BLAST results:
 
 This two-tiered approach allows the script to distinguish between nearly identical matches and merely significant matches, providing a more nuanced classification of potential chimeric sequences.
 
+## Initial Alignment Check (in Blasch_modified version):
+
+The script first parses the BLAST results, where each sequence (query) is aligned against a database of reference sequences (hits).
+For each query, the alignments are evaluated based on two key metrics:
+Query Coverage: The percentage of the query sequence that aligns with the reference (hit) sequence.
+Identity Percentage: The percentage of identical matches in the alignment.
+High-Identity Alignment:
+
+Sequences with high identity (≥ 99%) and high query coverage (≥ 99%) are considered for stricter classification as chimeras.
+If a sequence has multiple high-identity alignments or if the alignment is to a different taxonomic group, it's flagged as an absolute chimera or a false positive chimera.
+Borderline Sequence Criteria: If no high-identity alignment is found (meaning the sequence does not meet the 99% identity and coverage threshold), the script evaluates the remaining alignments using less stringent criteria:
+
+Max Identity and Coverage:
+The script calculates the maximum identity percentage and maximum query coverage across all alignments for that sequence.
+If any alignment has a minimum identity percentage of 80% and query coverage of 80%, the sequence is flagged as borderline.
 
 ## 📂 Directory Structure
 
