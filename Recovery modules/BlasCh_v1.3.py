@@ -13,7 +13,7 @@ UPDATES:
 
 Description:
     This script processes BLAST XML results to identify and classify chimeric sequences in long-read sequencing data.
-    It categorizes sequences as false positive chimeras, absolute chimeras, borderline sequences, or non-chimeric sequences
+    It categorizes sequences as false positive chimeras, absolute chimeras and borderline sequences
     based on specified alignment criteria. The script utilizes multiprocessing for efficient handling of large datasets
     and includes system resource usage monitoring.
 
