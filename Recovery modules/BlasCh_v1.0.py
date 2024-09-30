@@ -7,10 +7,12 @@ UPDATES:
 - Improved error handling and logging with detailed process information.
 - Optimized file I/O operations and memory management.
 - Enhanced report generation with overall and per-file statistics.
+- Implemented check for multiple alignments (HSPs) in the first hit to classify absolute chimeras.
+- Refined classification criteria based on high-identity and high-coverage alignments.
 
 Description:
     This script processes BLAST XML results to identify and classify chimeric sequences in long-read sequencing data.
-    It categorizes sequences as false positive chimeras, absolute chimeras, uncertain chimeras, or non-chimeric sequences
+    It categorizes sequences as false positive chimeras, absolute chimeras, and borderline sequences
     based on specified alignment criteria. The script utilizes multiprocessing for efficient handling of large datasets
     and includes system resource usage monitoring.
 
@@ -32,6 +34,7 @@ Dependencies:
     - Bio.SeqIO (from BioPython)
     - collections (defaultdict)
     - logging
+    - csv
 
 Input:
     - FASTA files in the specified input directory
@@ -41,6 +44,7 @@ Output:
     - Classified sequences in separate FASTA files within the output directory
     - Detailed report file summarizing overall and per-file results
     - Log file with process information and system resource usage
+    - CSV file with sequence details, including query coverage, identity, and classification
 
 Configuration:
     Modify the following variables at the beginning of the script to customize paths and thresholds:
@@ -51,33 +55,30 @@ Configuration:
     - NUM_PROCESSES: Number of processes to use for multiprocessing (automatically set to CPU count)
     - HIGH_IDENTITY_THRESHOLD: Threshold for high identity percentage (99.0)
     - HIGH_COVERAGE_THRESHOLD: Threshold for high query coverage (99.0)
-    - SIGNIFICANT_COVERAGE_THRESHOLD: Threshold for significant query coverage (80.0)
-    - SIGNIFICANT_IDENTITY_THRESHOLD: Threshold for significant identity percentage (80.0)
 
 Author: ALI HAKIMZADEH
 Version: 1.0
-Date: 2024-09-13
+Date: 2024-09-29
 """
+
 # Load Libraries 
 import os
 import shutil
 import multiprocessing
 import time
-import psutil  # For CPU and memory usage tracking
+import psutil
 from Bio.Blast import NCBIXML
 from Bio import SeqIO
 from collections import defaultdict
 import logging
 import csv
 
-# Configure logging to output process information
+# Configure logging
 logging.basicConfig(level=logging.DEBUG, format='%(processName)s: %(message)s')
 
 # Constants for classification criteria
 HIGH_IDENTITY_THRESHOLD = 99.0
 HIGH_COVERAGE_THRESHOLD = 99.0
-SIGNIFICANT_COVERAGE_THRESHOLD = 80.0
-SIGNIFICANT_IDENTITY_THRESHOLD = 80.0
 
 # Dynamically determine the number of CPUs to use for multiprocessing
 NUM_PROCESSES = multiprocessing.cpu_count()
@@ -104,19 +105,67 @@ def extract_query_id(blast_query_def):
     """Extract the query ID from the BLAST query definition."""
     return blast_query_def
 
+def analyze_blast_hits(blast_record, query_id):
+    """Analyze BLAST hits for a given blast record."""
+    hits_info = []
+    self_hit = None
+    for alignment in blast_record.alignments:
+        hsp = alignment.hsps[0]  # Consider only the best HSP for each alignment
+        hit_id = extract_query_id(alignment.hit_def)
+        
+        # Skip self-hits (criterion 1)
+        if hit_id == query_id:
+            self_hit = {
+                "hit_id": hit_id,
+                "identity": (hsp.identities / hsp.align_length) * 100,
+                "coverage": min((hsp.align_length / blast_record.query_length) * 100, 100),
+                "is_same_sample": "size=" in hit_id
+            }
+            continue
+        
+        hits_info.append({
+            "hit_id": hit_id,
+            "identity": (hsp.identities / hsp.align_length) * 100,
+            "coverage": min((hsp.align_length / blast_record.query_length) * 100, 100),
+            "is_same_sample": "size=" in hit_id
+        })
+    
+    return hits_info, self_hit
+
+def classify_sequence(hits_info, self_hit):
+    """Classify sequence based on hit information and criteria."""
+    if not hits_info:
+        return "non_chimeric", "No significant non-self hits"
+    
+    # Criterion 2: Certain false positive (non-chimeric)
+    high_quality_db_hit = any(
+        hit["identity"] >= HIGH_IDENTITY_THRESHOLD and 
+        hit["coverage"] >= HIGH_COVERAGE_THRESHOLD and 
+        not hit["is_same_sample"]
+        for hit in hits_info
+    )
+    if high_quality_db_hit:
+        return "non_chimeric", "High-quality match against database"
+    
+    # Criterion 3: Certain true positive chimeras (multiple alignments)
+    if len(hits_info) > 1:
+        return "chimeric", "Multiple non-self alignments"
+    
+    # Criterion 4: Middle-ground sequences (borderline)
+    return "borderline", "Single alignment, requires further analysis"
+
 def parse_blast_results(args):
-    """Parse BLAST XML results and classify sequences into different categories, and save sequence details in CSV format."""
+    """Parse BLAST XML results and classify sequences into different categories."""
     xml_file, temp_dir, temp_2_dir, fasta_file = args
     logging.debug(f"Starting processing for {xml_file}")
     
     fasta_sequences = load_fasta_sequences(fasta_file)
 
-    false_positive_chimeras = set()
-    absolute_chimeras = set()
-    uncertain_chimeras = set()
     non_chimeric_sequences = set()
+    chimeric_sequences = set()
+    borderline_sequences = set()
 
-    sequence_details = []  # To store sequence details for CSV
+    sequence_details = []
 
     with open(xml_file) as result_handle:
         blast_records = list(NCBIXML.parse(result_handle))
@@ -126,50 +175,55 @@ def parse_blast_results(args):
             if query_id not in fasta_sequences:
                 continue
 
-            significant_alignments = []
-            high_identity_alignments = []
+            hits_info, self_hit = analyze_blast_hits(blast_record, query_id)
+            classification, reason = classify_sequence(hits_info, self_hit)
             
-            for alignment in blast_record.alignments:
-                hit_id = extract_query_id(alignment.hit_def)
-                if hit_id != query_id:  # Exclude self-hits
-                    for hsp in alignment.hsps:
-                        query_coverage = min((hsp.align_length / blast_record.query_length) * 100, 100)
-                        identity_percentage = (hsp.identities / hsp.align_length) * 100
-                        
-                        sequence_details.append([query_id, query_coverage, identity_percentage])  # Store in list
-
-                        if identity_percentage >= HIGH_IDENTITY_THRESHOLD and query_coverage >= HIGH_COVERAGE_THRESHOLD:
-                            high_identity_alignments.append((alignment, hsp))
-                        elif query_coverage >= SIGNIFICANT_COVERAGE_THRESHOLD and identity_percentage >= SIGNIFICANT_IDENTITY_THRESHOLD:
-                            significant_alignments.append((alignment, hsp))
-
-            # Classification logic
-            if high_identity_alignments:
-                if all(extract_query_id(align[0].hit_def).split('_')[0] != query_id.split('_')[0] for align in high_identity_alignments):
-                    false_positive_chimeras.add(query_id)
-                else:
-                    uncertain_chimeras.add(query_id)
-            elif len(significant_alignments) > 1:
-                absolute_chimeras.add(query_id)
-            elif significant_alignments:
-                uncertain_chimeras.add(query_id)
-            else:
+            if classification == "non_chimeric":
                 non_chimeric_sequences.add(query_id)
+            elif classification == "chimeric":
+                chimeric_sequences.add(query_id)
+            else:
+                borderline_sequences.add(query_id)
+            
+            logging.debug(f"{query_id} classified as {classification} ({reason})")
+            
+            # Add details for all hits
+            for i, hit in enumerate(hits_info, 1):
+                sequence_details.append([
+                    query_id, 
+                    hit["coverage"], 
+                    hit["identity"], 
+                    classification,
+                    f"Hit {i}",
+                    "Same sample" if hit["is_same_sample"] else "Database"
+                ])
+            
+            # Add self-hit information if available
+            if self_hit:
+                sequence_details.append([
+                    query_id,
+                    self_hit["coverage"],
+                    self_hit["identity"],
+                    "Self-hit",
+                    "Self-hit",
+                    "Same sample"
+                ])
 
         # Write intermediate results to the temporary folder
         base_filename = os.path.basename(fasta_file).replace(".chimeras.fasta", "")
-        write_sequences_to_file(false_positive_chimeras, fasta_sequences, os.path.join(temp_dir, f"{base_filename}_false_positive_chimeras.fasta"))
         write_sequences_to_file(non_chimeric_sequences, fasta_sequences, os.path.join(temp_dir, f"{base_filename}_non_chimeric.fasta"))
+        write_sequences_to_file(borderline_sequences, fasta_sequences, os.path.join(temp_dir, f"{base_filename}_borderline.fasta"))
+        write_sequences_to_file(chimeric_sequences, fasta_sequences, os.path.join(temp_dir, f"{base_filename}_chimeric.fasta"))
     
-        # Write the sequence details (ID, coverage, identity) to CSV in temp_2
+        # Write the sequence details to CSV in temp_2
         csv_file_path = os.path.join(temp_2_dir, f"{base_filename}_sequence_details.csv")
         with open(csv_file_path, 'w', newline='') as csvfile:
             csvwriter = csv.writer(csvfile)
-            csvwriter.writerow(["Sequence ID", "Query Coverage (%)", "Identity Percentage (%)"])
+            csvwriter.writerow(["Sequence ID", "Query Coverage (%)", "Identity Percentage (%)", "Classification", "Hit Type", "Hit Origin"])
             csvwriter.writerows(sequence_details)
 
     logging.debug(f"Completed processing for {xml_file}")
-    return false_positive_chimeras, absolute_chimeras, uncertain_chimeras, non_chimeric_sequences
+    return non_chimeric_sequences, chimeric_sequences, borderline_sequences
 
 def write_sequences_to_file(seq_ids, fasta_sequences, output_file):
     """Write sequences to a FASTA file."""
@@ -177,35 +231,12 @@ def write_sequences_to_file(seq_ids, fasta_sequences, output_file):
         for seq_id in sorted(seq_ids):
             out_file.write(f">{seq_id}\n{fasta_sequences[seq_id]}\n")
 
-def combine_sequences(temp_dir, base_filename, output_dir):
-    """Combine non-chimeric and false-positive chimera sequences into a final output."""
-    false_positive_file = os.path.join(temp_dir, f"{base_filename}_false_positive_chimeras.fasta")
-    non_chimeric_file = os.path.join(temp_dir, f"{base_filename}_non_chimeric.fasta")
-    recovered_file = os.path.join(output_dir, f"{base_filename}_recovered.fasta")
-
-    with open(recovered_file, 'w') as outfile:
-        for fname in [non_chimeric_file, false_positive_file]:
-            if os.path.exists(fname):
-                with open(fname) as infile:
-                    shutil.copyfileobj(infile, outfile)
-
-def generate_report(all_false_positive_chimeras, all_absolute_chimeras, all_uncertain_chimeras, all_non_chimeric_sequences, file_results, output_dir):
-    """
-    Generate a detailed report summarizing the results, sorted by file name.
-    
-    Args:
-        all_false_positive_chimeras (set): Set of all false positive chimeras.
-        all_absolute_chimeras (set): Set of all absolute chimeras.
-        all_uncertain_chimeras (set): Set of all uncertain chimeras.
-        all_non_chimeric_sequences (set): Set of all non-chimeric sequences.
-        file_results (dict): Dictionary containing results for each processed file.
-        output_dir (str): Directory for output files.
-    """
+def generate_report(all_non_chimeric_sequences, all_absolute_chimeras, all_borderline_chimeras, file_results, output_dir):
+    """Generate a detailed report summarizing the results, sorted by file name."""
     report = {
-        "False Positive Chimeras": len(all_false_positive_chimeras),
+        "Non-Chimeric Sequences": len(all_non_chimeric_sequences),
         "Absolute Chimeras": len(all_absolute_chimeras),
-        "Uncertain Chimeras": len(all_uncertain_chimeras),
-        "Non-Chimeric Sequences": len(all_non_chimeric_sequences)
+        "Borderline Chimeras": len(all_borderline_chimeras)
     }
 
     total_sequences = sum(report.values())
@@ -223,48 +254,35 @@ def generate_report(all_false_positive_chimeras, all_absolute_chimeras, all_unce
         report_file.write("Detailed Results by File:\n")
         report_file.write("-------------------------\n")
         
-        # Sort the file_results dictionary by keys (file names)
         sorted_file_results = dict(sorted(file_results.items()))
         
         for file, results in sorted_file_results.items():
             report_file.write(f"\nFile: {file}\n")
             file_total = sum(results.values())
             
-            # Calculate the recovered sequences
-            recovered_sequences = results["False Positive Chimeras"] + results["Non-Chimeric Sequences"]
-            
             for category, count in results.items():
                 percentage = (count / file_total) * 100 if file_total > 0 else 0
                 report_file.write(f"  {category}: {count} ({percentage:.2f}%)\n")
                 
             report_file.write(f"  Total: {file_total}\n")
-            report_file.write(f"  Total Recovered Sequences: {recovered_sequences}\n")  # Add this line for recovered sequences
 
 def process_all_xml_files(directory, temp_dir, temp_2_dir, output_dir, input_dir):
     """Process all BLAST XML files and generate final outputs."""
     # Clean up existing directories if they exist
-    if os.path.exists(temp_dir):
-        shutil.rmtree(temp_dir)
-    if os.path.exists(temp_2_dir):
-        shutil.rmtree(temp_2_dir)
-    if os.path.exists(output_dir):
-        shutil.rmtree(output_dir)
-
-    # Recreate directories after cleanup
-    os.makedirs(temp_dir, exist_ok=True)
-    os.makedirs(temp_2_dir, exist_ok=True)
-    os.makedirs(output_dir, exist_ok=True)
+    for dir in [temp_dir, temp_2_dir, output_dir]:
+        if os.path.exists(dir):
+            shutil.rmtree(dir)
+        os.makedirs(dir, exist_ok=True)
 
     args_list = []
     file_results = defaultdict(lambda: defaultdict(int))
     
-    all_false_positive_chimeras = set()
-    all_absolute_chimeras = set()
-    all_uncertain_chimeras = set()
     all_non_chimeric_sequences = set()
+    all_absolute_chimeras = set()
+    all_borderline_chimeras = set()
 
-    start_time = time.time()  # Track the start time
-    log_system_usage()  # Log initial system usage
+    start_time = time.time()
+    log_system_usage()
 
     for filename in os.listdir(directory):
         if filename.endswith("_blast_results.xml"):
@@ -278,41 +296,39 @@ def process_all_xml_files(directory, temp_dir, temp_2_dir, output_dir, input_dir
         results = pool.map(parse_blast_results, args_list)
 
     for i, result in enumerate(results):
-        false_positive_chimeras, absolute_chimeras, uncertain_chimeras, non_chimeric_sequences = result
-        all_false_positive_chimeras.update(false_positive_chimeras)
-        all_absolute_chimeras.update(absolute_chimeras)
-        all_uncertain_chimeras.update(uncertain_chimeras)
+        non_chimeric_sequences, absolute_chimeras, borderline_chimeras = result
         all_non_chimeric_sequences.update(non_chimeric_sequences)
+        all_absolute_chimeras.update(absolute_chimeras)
+        all_borderline_chimeras.update(borderline_chimeras)
         
         file_results[args_list[i][0]] = {
-            "False Positive Chimeras": len(false_positive_chimeras),
+            "Non-Chimeric Sequences": len(non_chimeric_sequences),
             "Absolute Chimeras": len(absolute_chimeras),
-            "Uncertain Chimeras": len(uncertain_chimeras),
-            "Non-Chimeric Sequences": len(non_chimeric_sequences)
+            "Borderline Chimeras": len(borderline_chimeras)
         }
 
-    # Combine sequences and generate final report
+    # Combine non-chimeric sequences into final output
     for filename in os.listdir(input_dir):
         if filename.endswith(".chimeras.fasta"):
             base_filename = os.path.basename(filename).replace(".chimeras.fasta", "")
-            combine_sequences(temp_dir, base_filename, output_dir)
+            non_chimeric_file = os.path.join(temp_dir, f"{base_filename}_non_chimeric.fasta")
+            borderline_file = os.path.join(temp_dir, f"{base_filename}_borderline.fasta")
+            if os.path.exists(non_chimeric_file):
+                shutil.copy(non_chimeric_file, os.path.join(output_dir, f"{base_filename}_recovered.fasta"))
+            if os.path.exists(borderline_file):
+                shutil.copy(borderline_file, os.path.join(output_dir, f"{base_filename}_borderline.fasta"))
     
-    generate_report(all_false_positive_chimeras, all_absolute_chimeras, all_uncertain_chimeras, all_non_chimeric_sequences, file_results, output_dir)
+    generate_report(all_non_chimeric_sequences, all_absolute_chimeras, all_borderline_chimeras, file_results, output_dir)
 
-    log_system_usage()  # Log final system usage
-
-    # Clean up temporary folder after processing
-#    shutil.rmtree(temp_dir)
-#    shutil.rmtree(temp_2_dir)
+    log_system_usage()
 
     end_time = time.time()
     elapsed_time = end_time - start_time
     logging.info(f"Total time taken: {elapsed_time:.2f} seconds")
 
-
 if __name__ == "__main__":
-    input_dir = "./input"
-    directory = "."
+    input_dir = "./input" # FASTA files
+    directory = "." # XML files
     temp_dir = "./temp"
     temp_2_dir = "./temp_2"
     output_dir = "./rescued_reads"
