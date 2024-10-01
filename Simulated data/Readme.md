@@ -1,16 +1,17 @@
 # Simulated adata generation scripts
 
-This repository contains a collection of scripts for generating simulated dataset for (ITS) sequences in fungal species. These tools cover various aspects of ITS analysis, from sequence trimming to simulation and filtering.
+This repository contains a collection of scripts for generating simulated dataset for (ITS) sequences in fungal species. These tools cover various aspects of simulated adata generation, from sequence trimming to simulation and filtering.
 
 ## Scripts Overview
+1. [fq2fa.sh](#fq2fa.sh)
+2. [ITSX.sh](#itsx.sh)
+3. [cutadapt.sh](#cutadapt.sh)
+4. [fasta_header.py](#fasta_header.py)
+5. [find_fullITS_fasta.sh](#find_fullits_fasta.sh)
+6. [table_filter_species.py](#table_filter_species.py)
+7. [simulation.py](#simulation.py)
+8. [chimera_generator.py] (#chimera_generator.py)
 
-1. [ITSX.sh](#itsx.sh)
-2. [cutadapt.sh](#cutadapt.sh)
-3. [fasta_header.py](#fasta_header.py)
-4. [find_fullITS_fasta.sh](#find_fullits_fasta.sh)
-5. [fq2fa.sh](#fq2fa.sh)
-6. [simulation.py](#simulation.py)
-7. [table_filter_species.py](#table_filter_species.py)
 
 ## Detailed Script Descriptions
 
@@ -55,7 +56,13 @@ This Bash script finds and copies full ITS FASTA files from a source directory t
 - Excludes ITS1 and ITS2 specific files
 - Copies matched files to a specified destination directory
 
+### table_filter_species.py
 
+This Python script filters a CSV table and generates a FASTA file with species names in the headers.
+
+**Features:**
+- Filters rows in a CSV file
+- Generates a new FASTA file with updated headers including species names
 
 ### simulation.py
 
@@ -65,14 +72,6 @@ This Python script simulates sequencing reads from ITS sequences using SimLoRD.
 - Parses input FASTA file
 - Generates simulated reads for each sequence
 - Creates a report of sequence counts in output FASTQ files
-
-### table_filter_species.py
-
-This Python script filters a CSV table and generates a FASTA file with species names in the headers.
-
-**Features:**
-- Filters rows in a CSV file
-- Generates a new FASTA file with updated headers including species names
 
 # Chimera Generator Script
 
