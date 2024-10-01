@@ -10,7 +10,7 @@ This repository contains a collection of scripts for generating simulated datase
 5. [find_fullITS_fasta.sh](#find_fullits_fasta.sh)
 6. [table_filter_species.py](#table_filter_species.py)
 7. [simulation.py](#simulation.py)
-8. [chimera_generator.py] (#chimera_generator.py)
+8. [chimera_generator.py](#chimera_generator.py)
 
 
 ## Detailed Script Descriptions
