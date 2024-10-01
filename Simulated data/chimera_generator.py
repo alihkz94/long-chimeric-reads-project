@@ -1,5 +1,31 @@
-# Generate chimeric reads by combining sequences from multiple FASTA files
+"""
+=====================================================================
+Chimera Generator: Creating Chimeric Reads from Multiple FASTA Files
+=====================================================================
 
+**Description:**
+This script generates chimeric reads by combining sequences from multiple FASTA files.
+It randomly selects pairs of sequences, determines breakpoints, and creates new sequences by
+joining parts of each sequence. The generated chimeras are saved in a designated output
+directory, and detailed information about each chimera is logged for further analysis.
+
+**Features:**
+- Combines sequences from multiple FASTA files to create chimeric reads.
+- Configurable prefix for chimera IDs.
+- Ensures chimeric sequences meet specified length and ratio criteria.
+- Optionally reverse complements some chimeras for diversity.
+- Logs detailed information about each generated chimera, including parent sequences and breakpoints.
+
+**Usage:**
+1. **Prepare Input:**
+   - Place all input FASTA files in the working directory where the script will be executed.
+
+2. **Run the Script:**
+   ```bash
+   python generate_chimeras.py
+```
+"""   
+#load libraries
 import os
 import random
 from Bio import SeqIO
