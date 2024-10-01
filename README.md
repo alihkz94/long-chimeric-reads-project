@@ -7,7 +7,7 @@ This repository contains the data and part of the analysis stack for the aboveme
 
 [DADA2](https://github.com/alihkz94/long-chimeric-reads-project/tree/main/DADA2) holds scripts related to DADA2 quality filtering and chimera filtering related to the real dataset. Moreover the scripts for the simulated dataset and statical analysis for calculating F1 score. 
 
-[Recovery modules](https://github.com/alihkz94/long-chimeric-reads-project/tree/main/Recovery%20modules) contains the BLAST scripts for alignment and recovery module for it. Besides it contains ReChime (v1) module. 
+[Recovery modules](https://github.com/alihkz94/long-chimeric-reads-project/tree/main/Recovery%20modules) contain the BLAST scripts for alignment and specific module **BlasCh** designed for processing XML outputs.
 
 1. started by cutadapt with trimming ITS regions.
 2. Later on, the "ITS.fasta" file was inserted for the simulation with SimLoRD.
