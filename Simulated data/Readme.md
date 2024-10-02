@@ -80,11 +80,11 @@ This Python script simulates sequencing reads from ITS sequences using SimLoRD.
 This script is designed for concatanation of fasta files into one before deploying 
 the VSEARCH modules for the chimera filteration.
 
-# Chimera Generator Script
+## Chimera Generator Script
 
 This Python script generates chimeric reads by combining sequences from multiple FASTA files. It's designed to simulate chimeric sequences that can occur in sequencing experiments, particularly useful for testing chimera detection algorithms.
 
-## Features
+**Features:**
 
 1. Generates chimeric sequences from input FASTA files
 2. Creates a detailed log of chimera information
@@ -93,23 +93,23 @@ This Python script generates chimeric reads by combining sequences from multiple
 5. Optionally reverses and complements some chimeras
 6. Avoids generating too many short chimeras
 
-## Dependencies
+**Dependencies**
 
 - Python 3.x
 - Biopython
 
 
-## Input
+**Input**
 
 - One or more FASTA files in the same directory as the script
 
-## Output
+**Output**
 
 1. A new directory named `chimeric_reads` containing:
    - FASTA files with original and chimeric sequences
    - A TSV file `chimera_info.tsv` with detailed information about each chimera
 
-## Detailed Workflow
+#### Detailed Workflow
 
 1. **Setup:**
    - Identifies all FASTA files in the current directory
@@ -138,7 +138,7 @@ This Python script generates chimeric reads by combining sequences from multiple
    - Writes new FASTA files with original and chimeric sequences
    - Creates a detailed TSV log with information about each chimera
 
-## Chimera Information Log
+#### Chimera Information Log
 
 The `chimera_info.tsv` file contains the following information for each chimera:
 
@@ -152,7 +152,7 @@ The `chimera_info.tsv` file contains the following information for each chimera:
 8. Assigned abundance ratio
 9. Chimera length
 
-## Note
+#### Note
 
 This script is designed for generating test data and should not be used to create actual biological sequences for analysis. The chimeras generated are artificial and may not represent real biological chimeras accurately.
 
