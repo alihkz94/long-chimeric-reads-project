@@ -1,3 +1,6 @@
+## DADA2 Pipeline for Chimera Filtering and Sequence Processing ##
+
+# load necessary libraries
 library(Biostrings)
 library(data.table)
 library(dplyr)
