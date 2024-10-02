@@ -12,7 +12,7 @@ This repository contains a collection of scripts for generating simulated datase
 7. [simulation.py](simulation.py)
 8. [concatanate_fasta_input_uchime.sh](concatanate_fasta_input_uchime.sh)
 9. [chimera_generator.py](chimera_generator.py)
-10. [statistcs.py](statistcs.py)
+10. [statistics.py](statistics.py)
 
 
 ## Detailed Script Descriptions
