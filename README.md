@@ -3,11 +3,13 @@
 ### Structure
 This repository contains the data and part of the analysis stack for the abovementioned paper. It is structured as follows:
 
-[Chimeras_denovo](https://github.com/alihkz94/long-chimeric-reads-project/tree/main/Chimeras_denovo) holds scripts related to the long read module of the VSEARCH applied for the simulated dataset and statistical part for calculating the F1 score. 
+[BlasCh](https://github.com/alihkz94/long-chimeric-reads-project/tree/main/BlasCh) contain the BLAST scripts for alignment and specific module **BlasCh** designed for processing XML outputs to find false positive chimeras and false negative chimeras.
 
-[DADA2](https://github.com/alihkz94/long-chimeric-reads-project/tree/main/DADA2) holds scripts related to DADA2 quality filtering and chimera filtering related to the real dataset. Moreover the scripts for the simulated dataset and statical analysis for calculating F1 score. 
+[Real data](https://github.com/alihkz94/long-chimeric-reads-project/tree/main/Real) holds scripts related to the long read module of the VSEARCH applied for the simulated dataset and statistical part for calculating the F1 score. 
 
-[Recovery modules](https://github.com/alihkz94/long-chimeric-reads-project/tree/main/Recovery%20modules) contain the BLAST scripts for alignment and specific module **BlasCh** designed for processing XML outputs.
+[Simulated data](https://github.com/alihkz94/long-chimeric-reads-project/tree/main/DADA2) holds scripts related to simulated dataset from generating the simulated data, chimeric sequence creation, quality filtering and chimera filtering related to the simulated dataset. Moreover the scripts for the simulated dataset and statical analysis for calculating F1 score. 
+
+
 
 1. started by cutadapt with trimming ITS regions.
 2. Later on, the "ITS.fasta" file was inserted for the simulation with SimLoRD.
