@@ -3,7 +3,7 @@
 This repository contains a collection of scripts for generating simulated dataset for (ITS) sequences in fungal species. These tools cover various aspects of simulated adata generation, from sequence trimming to simulation and filtering.
 
 ## Scripts Overview
-1. [fq2fa.sh](#fq2fa.sh)
+1. [fq2fa.sh](fq2fa.sh)
 2. [ITSX.sh](#itsx.sh)
 3. [cutadapt.sh](#cutadapt.sh)
 4. [fasta_header.py](#fasta_header.py)
