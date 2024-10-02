@@ -10,8 +10,9 @@ This repository contains a collection of scripts for generating simulated datase
 5. [find_fullITS_fasta.sh](#find_fullits_fasta.sh)
 6. [table_filter_species.py](#table_filter_species.py)
 7. [simulation.py](#simulation.py)
-8. [chimera_generator.py](#chimera_generator.py)
-9. [statistics.py](#statistics.py)
+8. [concatanate_fasta_input_uchime.sh](concatanate_fasta_input_uchime.sh)
+9. [chimera_generator.py](#chimera_generator.py)
+10. [statistics.py](#statistics.py)
 
 
 ## Detailed Script Descriptions
@@ -73,6 +74,11 @@ This Python script simulates sequencing reads from ITS sequences using SimLoRD.
 - Parses input FASTA file
 - Generates simulated reads for each sequence
 - Creates a report of sequence counts in output FASTQ files
+
+### concatanate_fasta_input_uchime.sh
+
+This script is designed for concatanation of fasta files into one before deploying 
+the VSEARCH modules for the chimera filteration.
 
 # Chimera Generator Script
 
