@@ -1,8 +1,8 @@
-'''
+"""
 This script generates stacked bar plots for the number of chimeric 
 and false positive chimeric sequences detected by different chimera 
 detection modules.
-'''
+"""
 
 #importlibraries
 import pandas as pd
