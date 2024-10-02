@@ -10,7 +10,7 @@ This repository contains a collection of scripts for generating simulated datase
 5. [find_fullITS_fasta.sh](#find_fullits_fasta.sh)
 6. [table_filter_species.py](#table_filter_species.py)
 7. [simulation.py](#simulation.py)
-8. [concatanate_fasta_input_uchime.sh](concatanate_fasta_input_uchime.sh)
+8. [concatanate_fasta_input_uchime.sh](#concatanate_fasta_input_uchime.sh)
 9. [chimera_generator.py](#chimera_generator.py)
 10. [statistics.py](#statistics.py)
 
