@@ -4,7 +4,7 @@ This repository contains a collection of scripts for generating simulated datase
 
 ## Scripts Overview
 1. [fq2fa.sh](fq2fa.sh)
-2. [ITSX.sh](itsx.sh)
+2. [ITSX.sh](ITSX.sh)
 3. [cutadapt.sh](cutadapt.sh)
 4. [fasta_header.py](fasta_header.py)
 5. [find_fullITS_fasta.sh](find_fullits_fasta.sh)
