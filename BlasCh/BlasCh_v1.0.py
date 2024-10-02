@@ -1,20 +1,11 @@
 """
 Chimera recovery module for Long-Read Sequencing
 
-UPDATES:
-- Implemented multiprocessing for faster processing of multiple BLAST XML files.
-- Added CPU and memory usage tracking using psutil.
-- Improved error handling and logging with detailed process information.
-- Optimized file I/O operations and memory management.
-- Enhanced report generation with overall and per-file statistics.
-- Implemented check for multiple alignments (HSPs) in the first hit to classify absolute chimeras.
-- Refined classification criteria based on high-identity and high-coverage alignments.
-
 Description:
     This script processes BLAST XML results to identify and classify chimeric sequences in long-read sequencing data.
     It categorizes sequences as false positive chimeras, absolute chimeras, and borderline sequences
-    based on specified alignment criteria. The script utilizes multiprocessing for efficient handling of large datasets
-    and includes system resource usage monitoring.
+    based on specified alignment criteria. The script utilizes multiprocessing to efficiently handle large datasets
+    and includes monitoring system resource usage.
 
 Usage:
     python BlasCh.py
