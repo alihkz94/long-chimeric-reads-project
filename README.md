@@ -10,3 +10,4 @@ This repository contains the data and part of the analysis stack for the aboveme
 [Simulated data](https://github.com/alihkz94/long-chimeric-reads-project/tree/main/Simulated%20data) holds scripts related to the simulated dataset from generating the simulated data, chimeric sequence creation, quality filtering, and chimera filtering related to the simulated dataset. Moreover, the scripts for the simulated dataset and statical analysis were used to calculate the F1 score. 
 
 
+![workflow for real dataset]([workflow.jpg)](https://drive.google.com/file/d/1dUTsMRrKNatyHiH2-F-t7G_o6zdcgK4r/view?usp=drive_link)
