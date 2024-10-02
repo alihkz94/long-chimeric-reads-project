@@ -11,6 +11,7 @@ This repository contains a collection of scripts for generating simulated datase
 6. [table_filter_species.py](#table_filter_species.py)
 7. [simulation.py](#simulation.py)
 8. [chimera_generator.py](#chimera_generator.py)
+9. [statistics.py](#statistics.py)
 
 
 ## Detailed Script Descriptions
@@ -148,3 +149,42 @@ The `chimera_info.tsv` file contains the following information for each chimera:
 ## Note
 
 This script is designed for generating test data and should not be used to create actual biological sequences for analysis. The chimeras generated are artificial and may not represent real biological chimeras accurately.
+
+### statistics.py
+
+This Python script generates a comprehensive report on the performance of chimera detection methods applied to simulated datasets.
+
+**Features:**
+- Parses chimera information from a TSV file
+- Analyzes detected chimeras from FASTA files
+- Calculates key performance metrics:
+  - True Positives
+  - False Positives
+  - True Negatives
+  - False Negatives
+  - Sensitivity
+  - Specificity
+- Processes multiple FASTA files in a specified directory
+- Generates a summary report in TSV format
+
+**Usage:**
+1. Ensure the script is in the same directory as the FASTA files to be analyzed
+2. Modify the `folder_path` variable to point to the directory containing the FASTA files
+3. Set the `total_non_chimera_reads` variable to the correct number of non-chimera reads in your dataset
+4. Run the script:
+   ```
+   python statistics.py
+   ```
+
+**Input:**
+- FASTA files containing detected chimeric sequences
+- A `chimera_info.tsv` file with information about generated chimeras
+
+**Output:**
+- A TSV file named `chimera_detection_results.tsv` containing:
+  - File name
+  - Number of generated chimeras
+  - Number of detected chimeras
+  - Proportion of chimeras detected
+  - True Positives, False Positives, True Negatives, False Negatives
+  - Sensitivity and Specificity for each analyzed file
