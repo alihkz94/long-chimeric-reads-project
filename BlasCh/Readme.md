@@ -74,6 +74,3 @@ The script classifies sequences based on the following criteria:
 
 The script uses Python's logging module to provide detailed information about the process, including CPU and memory usage.
 
-## ⚠️ Error Handling
-
-The script implements robust error handling and will log any errors that occur during processing.
