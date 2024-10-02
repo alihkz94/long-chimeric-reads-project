@@ -1,11 +1,16 @@
+################################################################################
+#Generate a Venn diagram to compare the results of three different methods for #
+#identifying false positive chimeric sequences in a simulated dataset.         #
+################################################################################
+
 # Load necessary libraries
 library(VennDiagram)
 library(Biostrings)
-library(grid)
-library(gridExtra)
+
+setwd("~/Documents/simulated_data/analysis/figures/blast")
 
 # Function to calculate intersections and generate a Venn diagram
-generate_venn_diagram <- function(file1, file2, file3, labels, colors, title) {
+generate_venn_diagram <- function(file1, file2, file3, output_file) {
   # Load sequences from each FASTA file into sets
   seqs1 <- unique(as.character(readDNAStringSet(file1)))
   seqs2 <- unique(as.character(readDNAStringSet(file2)))
@@ -21,7 +26,6 @@ generate_venn_diagram <- function(file1, file2, file3, labels, colors, title) {
   unique_3 <- setdiff(seqs3, union(seqs1, seqs2))
   
   # Print the results
-  cat(title, "\n")
   cat("Unique to File 1:", length(unique_1), "\n")
   cat("Unique to File 2:", length(unique_2), "\n")
   cat("Unique to File 3:", length(unique_3), "\n")
@@ -32,51 +36,40 @@ generate_venn_diagram <- function(file1, file2, file3, labels, colors, title) {
   
   # Generate a Venn diagram
   venn.plot <- venn.diagram(
-    x = setNames(list(seqs1, seqs2, seqs3), labels),
-    category.names = labels,
+    x = list(
+      `uchime_denovo` = seqs1,
+      `chimeras_denovo` = seqs2,
+      `DADA2` = seqs3
+    ),
+    category.names = c("UCHIME_denovo", "Chimeras_denovo", "DADA2"),
     filename = NULL,
-    output = FALSE,
+    output = TRUE,
     imagetype = "png",
-    height = 2000,
-    width = 2000,
-    resolution = 300,
+    height = 2000,  # Adjusted for better fit in Word document
+    width = 2000,   # Adjusted for better fit in Word document
+    resolution = 300,  # Sufficient for high quality without being overly large
     compression = "lzw",
     col = "black",
-    fill = colors,
+    fill = c("#D55E00", "#0072B2", "#CC79A7"),
     alpha = 0.50,
-    cex = 2.5,  # Increase text size for intersection counts
-    cat.cex = 2.5,  # Increase text size for category labels
-    cat.pos = c(-15, 15, 180),
-    cat.dist = c(0.05, 0.05, 0.025),
+    cex = 1.5,  # Adjusted for better readability in Word document
+    cat.cex = 1.5,  # Adjusted for better readability in Word document
+    cat.pos = c(-15, 15, 180),  # Adjusted positions
+    cat.dist = c(0.05, 0.05, 0.025),  # Adjusted distances
     cat.col = c("black", "black", "black"),
-    main = title,
-    main.cex = 0,
-    margin = 0.1
+    main = "",
+    main.cex = 0,  # No title
+    margin = 0.1  # Reduced margin for better fit
   )
-  return(gTree(children = venn.plot))
+  
+  # Save the Venn diagram in high-resolution
+  jpeg(output_file, width = 2000, height = 2000, res = 300)
+  grid.draw(venn.plot)
+  dev.off()
 }
-
-# File paths
-uchime_denovo <- "/home/ali/Documents/simulated_data/analysis/Venn2/best/uchime_denovo.fasta"
-chimeras_denovo <- "/home/ali/Documents/simulated_data/analysis/Venn2/best/chimeras_denovo.fasta"
-DADA2 <- "/home/ali/Documents/simulated_data/analysis/Venn2/best/DADA2.fasta"
-
-rechimed_uchime_denovo <- "/home/ali/Documents/simulated_data/analysis/Venn2/best/rechimed/uchime_denovo.fasta"
-rechimed_chimeras_denovo <- "/home/ali/Documents/simulated_data/analysis/Venn2/best/rechimed/chimeras_denovo.fasta"
-rechimed_DADA2 <- "/home/ali/Documents/simulated_data/analysis/Venn2/best/rechimed/DADA2.fasta"
-
-# Generate both Venn diagrams
-venn1 <- generate_venn_diagram(uchime_denovo, chimeras_denovo, DADA2,
-                               c("UCHIME_denovo", "Chimeras_denovo", "DADA2"),
-                               c("#E69F00", "#56B4E9", "#009E73"),
-                               "Original Venn Diagram")
-
-venn2 <- generate_venn_diagram(rechimed_uchime_denovo, rechimed_chimeras_denovo, rechimed_DADA2,
-                               c("ReChimed UCHIME_denovo", "ReChimed chimeras_denovo", "ReChimed DADA2"),
-                               c("#FF0000", "#0000FF", "#00FF00"),
-                               "ReChimed Venn Diagram")
-
-# Combine both Venn diagrams into one SVG with increased text size
-svg("/home/ali/Documents/simulated_data/analysis/Venn2/best/combined_venn_diagrams.svg", width = 20, height = 10)
-grid.arrange(venn1, venn2, ncol = 2)
-dev.off()
+# Example usage
+uchime_denovo <- "/home/ali/Documents/simulated_data/analysis/figures/blast/uchime_denovo.fasta"
+chimeras_denovo <- "/home/ali/Documents/simulated_data/analysis/figures/blast/chimeras_denovo.fasta"
+DADA2<- "/home/ali/Documents/simulated_data/analysis/figures/blast/dada2.fasta"
+output_file <- "/home/ali/Documents/simulated_data/analysis/figures/blast/venn_diagram.png"
+generate_venn_diagram(uchime_denovo, chimeras_denovo, DADA2, output_file)
