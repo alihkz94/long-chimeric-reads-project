@@ -1,4 +1,4 @@
-# 🧬 BlasCh recovery module for recovering False positive chimeras 
+# 🧬 BlasCh recovery module for recovering false positive chimeras 
 
 [![Python Version](https://img.shields.io/badge/python-3.6%2B-blue)](https://www.python.org/downloads/)
 
