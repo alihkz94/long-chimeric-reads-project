@@ -11,7 +11,8 @@ parameters = {
     '--abskew': [2,3,4],
     '--chimeras_diff_pct': [0.5, 0.6, 0.7, 0.8, 0.9],
     '--chimeras_parents_max': [2,3],
-    '--chimeras_length_min' : [10,20,30]
+    '--chimeras_length_min' : [10,20,30],
+    '--chimeras_parts': [2,3,4],
 }
 
 # Define input file
