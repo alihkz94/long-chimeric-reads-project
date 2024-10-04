@@ -3,7 +3,6 @@ This script is used to generate a report on the performance of the chimera detec
 on the simulated dataset.
 """
 
-# load the necessary libraries
 import pandas as pd
 from Bio import SeqIO
 import glob
@@ -27,28 +26,30 @@ def parse_detected_chimeras(fasta_file):
             detected_chimeras.add(record.id.split(";")[0])  # Remove ";size=2" from the ID
     return detected_chimeras
 
-# Function to calculate true positives, false positives, and false negatives
-def calculate_rates(chimera_dict, detected_chimeras):
+# Function to calculate true positives, false positives, true negatives, and false negatives:
+def calculate_rates(chimera_dict, detected_chimeras, total_non_chimera_reads):
     true_positives = len(detected_chimeras.intersection(chimera_dict.keys()))
     false_positives = len(detected_chimeras.difference(chimera_dict.keys()))
     false_negatives = len(chimera_dict.keys()) - true_positives
-    return true_positives, false_positives, false_negatives
+    true_negatives = total_non_chimera_reads - false_positives
+    
+    return true_positives, false_positives, true_negatives, false_negatives
 
 # Function to calculate F1 score
-def calculate_f1_score(tp, fp, fn):
-    precision = tp / (tp + fp) if (tp + fp) > 0 else 0
-    recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+def calculate_f1_score(true_positives, false_positives, false_negatives):
+    precision = true_positives / (true_positives + false_positives) if (true_positives + false_positives) > 0 else 0
+    recall = true_positives / (true_positives + false_negatives) if (true_positives + false_negatives) > 0 else 0
     f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
-    return f1_score
+    return f1_score, precision, recall
 
 # Set the folder path where the FASTA files are located
-folder_path = "/home/ali/Documents/simulated_data/analysis/UCHIME/modified_short_reads/denovo_new"
+folder_path = "/home/ali/Documents/simulated_data/analysis/UCHIME/long_read_specific/tempdir_old"
 
 # List all the FASTA files in the folder
 fasta_files = glob.glob(os.path.join(folder_path, "*.fasta"))
 
 # Create an empty DataFrame to store the results
-results_df = pd.DataFrame(columns=["File", "Generated Chimeras", "Detected Chimeras", "Proportion Detected", "True Positives", "False Positives", "False Negatives", "F1 Score"])
+results_df = pd.DataFrame(columns=["File", "Generated Chimeras", "Detected Chimeras", "Proportion Detected", "True Positives", "False Positives", "True Negatives", "False Negatives", "Precision", "Recall", "F1 Score"])
 
 # Iterate over the FASTA files
 for fasta_file in fasta_files:
@@ -56,24 +57,26 @@ for fasta_file in fasta_files:
     chimera_info_file = os.path.join(folder_path, "chimera_info.tsv")
     chimera_dict = parse_chimera_info(chimera_info_file)
     detected_chimeras = parse_detected_chimeras(fasta_file)
-
+    
     # Compare the generated and detected chimeras
     match_count = 0
     for chimera_id in chimera_dict:
         if chimera_id in detected_chimeras:
             match_count += 1
-
+    
     # Calculate the proportion of generated chimeras that were successfully detected
     proportion_detected = match_count / len(chimera_dict)
-
+    
     #### Report generation ####
-
+    
+    total_non_chimera_reads = 44470  # Set this value to the number of non-chimera reads in dataset
+    
     # Calculate rates
-    tp, fp, fn = calculate_rates(chimera_dict, detected_chimeras)
-
-    # Calculate F1 score
-    f1_score = calculate_f1_score(tp, fp, fn)
-
+    tp, fp, tn, fn = calculate_rates(chimera_dict, detected_chimeras, total_non_chimera_reads)
+    
+    # Calculate F1 score, precision, and recall
+    f1_score, precision, recall = calculate_f1_score(tp, fp, fn)
+    
     # Append the results to the DataFrame
     results_df = results_df.append({
         "File": os.path.basename(fasta_file),
@@ -82,7 +85,10 @@ for fasta_file in fasta_files:
         "Proportion Detected": proportion_detected,
         "True Positives": tp,
         "False Positives": fp,
+        "True Negatives": tn,
         "False Negatives": fn,
+        "Precision": precision,
+        "Recall": recall,
         "F1 Score": f1_score
     }, ignore_index=True)
 
