@@ -350,13 +350,12 @@ def process_all_xml_files(directory, temp_dir, temp_2_dir, output_dir, input_dir
             "Borderline Chimeras": len(borderline_chimeras)
         }
 
-    # Combine non-chimeric and borderline sequences into final output
+    # Combine non-chimeric and borderline sequences into final output (skip chimeric)
     for filename in os.listdir(input_dir):
         if filename.endswith(".chimeras.fasta"):
             base_filename = os.path.basename(filename).replace(".chimeras.fasta", "")
             non_chimeric_file = os.path.join(temp_dir, f"{base_filename}_non_chimeric.fasta")
             borderline_file = os.path.join(temp_dir, f"{base_filename}_borderline.fasta")
-            chimeric_file = os.path.join(temp_dir, f"{base_filename}_chimeric.fasta")
             
             # Copy non-chimeric sequences if the file exists
             if os.path.exists(non_chimeric_file):
@@ -371,13 +370,6 @@ def process_all_xml_files(directory, temp_dir, temp_2_dir, output_dir, input_dir
                 logging.info(f"Copied {borderline_file} to output directory.")
             else:
                 logging.info(f"No borderline sequences for {base_filename}. Skipping file copy.")
-            
-            # Copy chimeric sequences if the file exists
-            if os.path.exists(chimeric_file):
-                shutil.copy(chimeric_file, os.path.join(output_dir, f"{base_filename}_chimeric.fasta"))
-                logging.info(f"Copied {chimeric_file} to output directory.")
-            else:
-                logging.info(f"No chimeric sequences for {base_filename}. Skipping file copy.")
 
     generate_report(all_non_chimeric_sequences, all_absolute_chimeras, all_borderline_chimeras, file_results, output_dir)
 
@@ -386,6 +378,7 @@ def process_all_xml_files(directory, temp_dir, temp_2_dir, output_dir, input_dir
     end_time = time.time()
     elapsed_time = end_time - start_time
     logging.info(f"Total time taken: {elapsed_time:.2f} seconds")
+
 
 if __name__ == "__main__":
     input_dir = "./input"      # Directory containing FASTA files
