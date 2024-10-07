@@ -65,14 +65,14 @@ import logging
 import csv
 
 # Configure logging
-logging.basicConfig(level=logging.DEBUG, format='%(processName)s: %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(processName)s: %(message)s')
 
 # Constants for classification criteria
 HIGH_IDENTITY_THRESHOLD = 99.0
 HIGH_COVERAGE_THRESHOLD = 99.0
 
 # Dynamically determine the number of CPUs to use for multiprocessing
-NUM_PROCESSES = multiprocessing.cpu_count()
+NUM_PROCESSES = max(1, multiprocessing.cpu_count()-1)
 
 def log_system_usage():
     """Logs the current CPU and RAM usage."""
@@ -101,6 +101,8 @@ def analyze_blast_hits(blast_record, query_id):
     hits_info = []
     self_hit = None
     for alignment in blast_record.alignments:
+        if not alignment.hsps:
+            continue  # Skip if there are no HSPs
         hsp = alignment.hsps[0]  # Consider only the best HSP for each alignment
         hit_id = extract_query_id(alignment.hit_def)
         
@@ -148,9 +150,16 @@ def classify_sequence(hits_info, self_hit):
 def parse_blast_results(args):
     """Parse BLAST XML results and classify sequences into different categories."""
     xml_file, temp_dir, temp_2_dir, fasta_file = args
-    logging.debug(f"Starting processing for {xml_file}")
+    logging.info(f"Starting processing for {xml_file}")
     
-    fasta_sequences = load_fasta_sequences(fasta_file)
+    try:
+        fasta_sequences = load_fasta_sequences(fasta_file)
+    except FileNotFoundError as e:
+        logging.error(e)
+        return set(), set(), set()
+    except Exception as e:
+        logging.error(f"Error loading FASTA file {fasta_file}: {e}")
+        return set(), set(), set()
 
     non_chimeric_sequences = set()
     chimeric_sequences = set()
@@ -158,112 +167,149 @@ def parse_blast_results(args):
 
     sequence_details = []
 
-    with open(xml_file) as result_handle:
-        blast_records = list(NCBIXML.parse(result_handle))
-        
-        for blast_record in blast_records:
-            query_id = extract_query_id(blast_record.query)
-            if query_id not in fasta_sequences:
-                continue
+    try:
+        with open(xml_file) as result_handle:
+            blast_records = NCBIXML.parse(result_handle)
+            for blast_record in blast_records:
+                query_id = extract_query_id(blast_record.query)
+                if query_id not in fasta_sequences:
+                    continue
 
-            hits_info, self_hit = analyze_blast_hits(blast_record, query_id)
-            classification, reason = classify_sequence(hits_info, self_hit)
-            
-            if classification == "non_chimeric":
-                non_chimeric_sequences.add(query_id)
-            elif classification == "chimeric":
-                chimeric_sequences.add(query_id)
-            else:
-                borderline_sequences.add(query_id)
-            
-            logging.debug(f"{query_id} classified as {classification} ({reason})")
-            
-            # Add details for all hits
-            for i, hit in enumerate(hits_info, 1):
-                sequence_details.append([
-                    query_id, 
-                    hit["coverage"], 
-                    hit["identity"], 
-                    classification,
-                    f"Hit {i}",
-                    "Same sample" if hit["is_same_sample"] else "Database"
-                ])
-            
-            # Add self-hit information if available
-            if self_hit:
-                sequence_details.append([
-                    query_id,
-                    self_hit["coverage"],
-                    self_hit["identity"],
-                    "Self-hit",
-                    "Self-hit",
-                    "Same sample"
-                ])
+                hits_info, self_hit = analyze_blast_hits(blast_record, query_id)
+                classification, reason = classify_sequence(hits_info, self_hit)
+                
+                if classification == "non_chimeric":
+                    non_chimeric_sequences.add(query_id)
+                elif classification == "chimeric":
+                    chimeric_sequences.add(query_id)
+                else:
+                    borderline_sequences.add(query_id)
+                
+                logging.debug(f"{query_id} classified as {classification} ({reason})")
+                
+                # Add details for all hits
+                for i, hit in enumerate(hits_info, 1):
+                    sequence_details.append([
+                        query_id, 
+                        hit["coverage"], 
+                        hit["identity"], 
+                        classification,
+                        f"Hit {i}",
+                        "Same sample" if hit["is_same_sample"] else "Database"
+                    ])
+                
+                # Add self-hit information if available
+                if self_hit:
+                    sequence_details.append([
+                        query_id,
+                        self_hit["coverage"],
+                        self_hit["identity"],
+                        "Self-hit",
+                        "Self-hit",
+                        "Same sample"
+                    ])
 
-        # Write intermediate results to the temporary folder
+                # Periodically write sequence details to prevent memory overflow
+                if len(sequence_details) >= 1000:
+                    write_sequence_details(sequence_details, temp_2_dir, fasta_file)
+                    sequence_details.clear()
+
+        # Write any remaining sequence details
+        if sequence_details:
+            write_sequence_details(sequence_details, temp_2_dir, fasta_file)
+            sequence_details.clear()
+
+        # Write sequences to output files only if they are non-empty
         base_filename = os.path.basename(fasta_file).replace(".chimeras.fasta", "")
         write_sequences_to_file(non_chimeric_sequences, fasta_sequences, os.path.join(temp_dir, f"{base_filename}_non_chimeric.fasta"))
         write_sequences_to_file(borderline_sequences, fasta_sequences, os.path.join(temp_dir, f"{base_filename}_borderline.fasta"))
         write_sequences_to_file(chimeric_sequences, fasta_sequences, os.path.join(temp_dir, f"{base_filename}_chimeric.fasta"))
     
-        # Write the sequence details to CSV in temp_2
-        csv_file_path = os.path.join(temp_2_dir, f"{base_filename}_sequence_details.csv")
-        with open(csv_file_path, 'w', newline='') as csvfile:
-            csvwriter = csv.writer(csvfile)
-            csvwriter.writerow(["Sequence ID", "Query Coverage (%)", "Identity Percentage (%)", "Classification", "Hit Type", "Hit Origin"])
-            csvwriter.writerows(sequence_details)
-
-    logging.debug(f"Completed processing for {xml_file}")
-    return non_chimeric_sequences, chimeric_sequences, borderline_sequences
+        logging.info(f"Completed processing for {xml_file}")
+        return non_chimeric_sequences, chimeric_sequences, borderline_sequences
+    except Exception as e:
+        logging.error(f"Error processing {xml_file}: {e}")
+        return set(), set(), set()
 
 def write_sequences_to_file(seq_ids, fasta_sequences, output_file):
-    """Write sequences to a FASTA file."""
-    with open(output_file, 'w') as out_file:
-        for seq_id in sorted(seq_ids):
-            out_file.write(f">{seq_id}\n{fasta_sequences[seq_id]}\n")
+    """Write sequences to a FASTA file only if seq_ids is not empty."""
+    if not seq_ids:
+        logging.info(f"No sequences to write for {output_file}. Skipping file creation.")
+        return
+    
+    try:
+        with open(output_file, 'w') as out_file:
+            for seq_id in sorted(seq_ids):
+                out_file.write(f">{seq_id}\n{fasta_sequences[seq_id]}\n")
+        logging.info(f"Wrote {len(seq_ids)} sequences to {output_file}")
+    except Exception as e:
+        logging.error(f"Error writing to {output_file}: {e}")
+
+def write_sequence_details(details, temp_2_dir, fasta_file):
+    """Write sequence details to a CSV file in batches."""
+    if not details:
+        logging.debug("No sequence details to write. Skipping.")
+        return
+    
+    try:
+        base_filename = os.path.basename(fasta_file).replace(".chimeras.fasta", "")
+        csv_file_path = os.path.join(temp_2_dir, f"{base_filename}_sequence_details.csv")
+        file_exists = os.path.isfile(csv_file_path)
+        with open(csv_file_path, 'a', newline='') as csvfile:
+            csvwriter = csv.writer(csvfile)
+            if not file_exists:
+                csvwriter.writerow(["Sequence ID", "Query Coverage (%)", "Identity Percentage (%)", "Classification", "Hit Type", "Hit Origin"])
+            csvwriter.writerows(details)
+        logging.debug(f"Wrote {len(details)} sequence details to {csv_file_path}")
+    except Exception as e:
+        logging.error(f"Error writing sequence details to {csv_file_path}: {e}")
 
 def generate_report(all_non_chimeric_sequences, all_absolute_chimeras, all_borderline_chimeras, file_results, output_dir):
     """Generate a detailed report summarizing the results, sorted by file name."""
-    report = {
-        "Non-Chimeric Sequences": len(all_non_chimeric_sequences),
-        "Absolute Chimeras": len(all_absolute_chimeras),
-        "Borderline Chimeras": len(all_borderline_chimeras)
-    }
+    try:
+        report = {
+            "Non-Chimeric Sequences": len(all_non_chimeric_sequences),
+            "Absolute Chimeras": len(all_absolute_chimeras),
+            "Borderline Chimeras": len(all_borderline_chimeras)
+        }
 
-    total_sequences = sum(report.values())
+        total_sequences = sum(report.values())
 
-    with open(os.path.join(output_dir, "chimera_detection_report.txt"), 'w') as report_file:
-        report_file.write("Chimera Detection Report\n")
-        report_file.write("========================\n\n")
-        report_file.write("Overall Summary:\n")
-        report_file.write("----------------\n")
-        for category, count in report.items():
-            percentage = (count / total_sequences) * 100 if total_sequences > 0 else 0
-            report_file.write(f"{category}: {count} ({percentage:.2f}%)\n")
-        report_file.write(f"\nTotal Sequences Processed: {total_sequences}\n\n")
-        
-        report_file.write("Detailed Results by File:\n")
-        report_file.write("-------------------------\n")
-        
-        sorted_file_results = dict(sorted(file_results.items()))
-        
-        for file, results in sorted_file_results.items():
-            report_file.write(f"\nFile: {file}\n")
-            file_total = sum(results.values())
+        with open(os.path.join(output_dir, "chimera_detection_report.txt"), 'w') as report_file:
+            report_file.write("Chimera Detection Report\n")
+            report_file.write("========================\n\n")
+            report_file.write("Overall Summary:\n")
+            report_file.write("----------------\n")
+            for category, count in report.items():
+                percentage = (count / total_sequences) * 100 if total_sequences > 0 else 0
+                report_file.write(f"{category}: {count} ({percentage:.2f}%)\n")
+            report_file.write(f"\nTotal Sequences Processed: {total_sequences}\n\n")
             
-            for category, count in results.items():
-                percentage = (count / file_total) * 100 if file_total > 0 else 0
-                report_file.write(f"  {category}: {count} ({percentage:.2f}%)\n")
+            report_file.write("Detailed Results by File:\n")
+            report_file.write("-------------------------\n")
+            
+            sorted_file_results = dict(sorted(file_results.items()))
+            
+            for file, results in sorted_file_results.items():
+                report_file.write(f"\nFile: {os.path.basename(file)}\n")
+                file_total = sum(results.values())
                 
-            report_file.write(f"  Total: {file_total}\n")
+                for category, count in results.items():
+                    percentage = (count / file_total) * 100 if file_total > 0 else 0
+                    report_file.write(f"  {category}: {count} ({percentage:.2f}%)\n")
+                    
+                report_file.write(f"  Total: {file_total}\n")
+        logging.info("Report generated successfully.")
+    except Exception as e:
+        logging.error(f"Error generating report: {e}")
 
 def process_all_xml_files(directory, temp_dir, temp_2_dir, output_dir, input_dir):
     """Process all BLAST XML files and generate final outputs."""
     # Clean up existing directories if they exist
-    for dir in [temp_dir, temp_2_dir, output_dir]:
-        if os.path.exists(dir):
-            shutil.rmtree(dir)
-        os.makedirs(dir, exist_ok=True)
+    for dir_path in [temp_dir, temp_2_dir, output_dir]:
+        if os.path.exists(dir_path):
+            shutil.rmtree(dir_path)
+        os.makedirs(dir_path, exist_ok=True)
 
     args_list = []
     file_results = defaultdict(lambda: defaultdict(int))
@@ -275,40 +321,64 @@ def process_all_xml_files(directory, temp_dir, temp_2_dir, output_dir, input_dir
     start_time = time.time()
     log_system_usage()
 
+    # Prepare arguments for multiprocessing
     for filename in os.listdir(directory):
         if filename.endswith("_blast_results.xml"):
             xml_file = os.path.join(directory, filename)
             fasta_file = os.path.join(input_dir, filename.replace("_blast_results.xml", ".chimeras.fasta"))
-            args_list.append((xml_file, temp_dir, temp_2_dir, fasta_file))
+            if os.path.exists(fasta_file):
+                args_list.append((xml_file, temp_dir, temp_2_dir, fasta_file))
+            else:
+                logging.warning(f"FASTA file for {xml_file} not found. Skipping.")
 
-    logging.debug(f"Using {NUM_PROCESSES} processes for multiprocessing")
+    logging.info(f"Using {NUM_PROCESSES} processes for multiprocessing.")
     
     with multiprocessing.Pool(processes=NUM_PROCESSES) as pool:
         results = pool.map(parse_blast_results, args_list)
 
+    # Merge all results
     for i, result in enumerate(results):
         non_chimeric_sequences, absolute_chimeras, borderline_chimeras = result
         all_non_chimeric_sequences.update(non_chimeric_sequences)
         all_absolute_chimeras.update(absolute_chimeras)
         all_borderline_chimeras.update(borderline_chimeras)
         
-        file_results[args_list[i][0]] = {
+        xml_file = args_list[i][0]
+        file_results[xml_file] = {
             "Non-Chimeric Sequences": len(non_chimeric_sequences),
             "Absolute Chimeras": len(absolute_chimeras),
             "Borderline Chimeras": len(borderline_chimeras)
         }
 
-    # Combine non-chimeric sequences into final output
+    # Combine non-chimeric and borderline sequences into final output
     for filename in os.listdir(input_dir):
         if filename.endswith(".chimeras.fasta"):
             base_filename = os.path.basename(filename).replace(".chimeras.fasta", "")
             non_chimeric_file = os.path.join(temp_dir, f"{base_filename}_non_chimeric.fasta")
             borderline_file = os.path.join(temp_dir, f"{base_filename}_borderline.fasta")
+            chimeric_file = os.path.join(temp_dir, f"{base_filename}_chimeric.fasta")
+            
+            # Copy non-chimeric sequences if the file exists
             if os.path.exists(non_chimeric_file):
-                shutil.copy(non_chimeric_file, os.path.join(output_dir, f"{base_filename}_recovered.fasta"))
+                shutil.copy(non_chimeric_file, os.path.join(output_dir, f"{base_filename}_non_chimeric.fasta"))
+                logging.info(f"Copied {non_chimeric_file} to output directory.")
+            else:
+                logging.info(f"No non-chimeric sequences for {base_filename}. Skipping file copy.")
+            
+            # Copy borderline sequences if the file exists
             if os.path.exists(borderline_file):
                 shutil.copy(borderline_file, os.path.join(output_dir, f"{base_filename}_borderline.fasta"))
-    
+                logging.info(f"Copied {borderline_file} to output directory.")
+            else:
+                logging.info(f"No borderline sequences for {base_filename}. Skipping file copy.")
+            
+            # Copy chimeric sequences if the file exists
+            if os.path.exists(chimeric_file):
+                shutil.copy(chimeric_file, os.path.join(output_dir, f"{base_filename}_chimeric.fasta"))
+                logging.info(f"Copied {chimeric_file} to output directory.")
+            else:
+                logging.info(f"No chimeric sequences for {base_filename}. Skipping file copy.")
+
     generate_report(all_non_chimeric_sequences, all_absolute_chimeras, all_borderline_chimeras, file_results, output_dir)
 
     log_system_usage()
@@ -318,8 +388,8 @@ def process_all_xml_files(directory, temp_dir, temp_2_dir, output_dir, input_dir
     logging.info(f"Total time taken: {elapsed_time:.2f} seconds")
 
 if __name__ == "__main__":
-    input_dir = "./input" # FASTA files
-    directory = "." # XML files
+    input_dir = "./input"      # Directory containing FASTA files
+    directory = "."            # Directory containing XML files
     temp_dir = "./temp"
     temp_2_dir = "./temp_2"
     output_dir = "./rescued_reads"
