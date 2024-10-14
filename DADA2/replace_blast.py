@@ -6,12 +6,11 @@ import time
 from Bio import SeqIO
 from functools import partial
 import xml.etree.ElementTree as ET
-import itertools
 
 # Configure logging to display process name and messages
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(processName)s - %(levelname)s - %(message)s'
+    format='%(processName)s - %(levelname)s - %(message)s'
 )
 
 def compute_md5(sequence):
@@ -36,65 +35,60 @@ def create_id_mapping(original_dir, chimeras_dir):
         try:
             # Load original sequences and create a hash-to-ID mapping
             original_seq_dict = {}
-            with open(original_file, 'r') as f:
-                for record in SeqIO.parse(f, "fasta"):
-                    seq_str = str(record.seq).upper()
-                    seq_hash = compute_md5(seq_str)
-                    original_seq_dict[seq_hash] = record.description
+            for record in SeqIO.parse(original_file, "fasta"):
+                seq_str = str(record.seq).upper()
+                seq_hash = compute_md5(seq_str)
+                original_seq_dict[seq_hash] = record.description  # Use full description as ID
 
             # Load chimera sequences
-            with open(chimera_file, 'r') as f:
-                for record in SeqIO.parse(f, "fasta"):
-                    seq_str = str(record.seq).upper()
-                    seq_hash = compute_md5(seq_str)
-                    chimera_id = record.description
+            for record in SeqIO.parse(chimera_file, "fasta"):
+                seq_str = str(record.seq).upper()
+                seq_hash = compute_md5(seq_str)
+                chimera_id = record.description  # Use full description
 
-                    if seq_hash in original_seq_dict:
-                        id_mapping[chimera_id] = original_seq_dict[seq_hash]
-                    else:
-                        logging.warning(f"Sequence in {chimera_file} not found in original. ID mapping not created for {chimera_id}.")
+                if seq_hash in original_seq_dict:
+                    original_id = original_seq_dict[seq_hash]
+                    id_mapping[chimera_id] = original_id
+                else:
+                    logging.warning(f"Sequence in {chimera_file} not found in original. ID mapping not created for {chimera_id}.")
         except Exception as e:
             logging.error(f"Error processing {filename}: {e}")
 
     return id_mapping
 
-def modify_blast_xml_chunk(blast_dir, output_dir, id_mapping, filename, chunk_size=1000):
+def modify_blast_xml(blast_dir, output_dir, id_mapping, filename):
     """
     Modify the BLAST XML file by replacing chimeric IDs with original IDs in <Iteration_query-def> elements.
-    Process the file in chunks to reduce memory usage.
+
+    Parameters:
+    - blast_dir: Directory containing the BLAST XML files.
+    - output_dir: Directory where modified XML files will be saved.
+    - id_mapping: Dictionary mapping chimeric IDs to original IDs.
+    - filename: Name of the BLAST XML file to process.
     """
     blast_file = os.path.join(blast_dir, filename)
     output_file = os.path.join(output_dir, filename)
 
     try:
-        # Initialize the output file
-        with open(output_file, 'w', encoding='utf-8') as out:
-            out.write('<?xml version="1.0"?>\n<BlastOutput>\n')
+        # Parse the BLAST XML file using ElementTree
+        tree = ET.parse(blast_file)
+        root = tree.getroot()
 
-        # Process the file in chunks
-        context = ET.iterparse(blast_file, events=('start', 'end'))
-        root = None
-        for event, elem in context:
-            if event == 'start' and root is None:
-                root = elem
-            elif event == 'end' and elem.tag == 'Iteration':
-                # Process each Iteration element
-                query_def = elem.find('Iteration_query-def')
-                if query_def is not None:
-                    original_query_def = id_mapping.get(query_def.text, query_def.text)
-                    query_def.text = original_query_def
+        # Define the namespace if present
+        namespace = ''
+        if root.tag.startswith('{'):
+            namespace = root.tag.split('}')[0] + '}'
 
-                # Write the processed Iteration to the output file
-                with open(output_file, 'a', encoding='utf-8') as out:
-                    out.write(ET.tostring(elem, encoding='unicode'))
+        # Iterate over all 'Iteration' elements
+        for iteration in root.findall(f'.//{namespace}Iteration'):
+            query_def = iteration.find(f'{namespace}Iteration_query-def')
+            if query_def is not None:
+                # Replace chimeric ID with original ID in Iteration_query-def
+                original_query_def = id_mapping.get(query_def.text, query_def.text)
+                query_def.text = original_query_def
 
-                # Clear the element to free memory
-                root.clear()
-
-        # Write the closing tag
-        with open(output_file, 'a', encoding='utf-8') as out:
-            out.write('</BlastOutput>')
-
+        # Write the modified XML tree to the output file
+        tree.write(output_file, encoding='UTF-8', xml_declaration=True)
         logging.info(f"Modified BLAST XML file saved: {output_file}")
 
     except Exception as e:
@@ -130,7 +124,7 @@ def main():
 
     # Partial function with fixed arguments
     process_func = partial(
-        modify_blast_xml_chunk,
+        modify_blast_xml,
         blast_dir,
         output_dir,
         id_mapping
