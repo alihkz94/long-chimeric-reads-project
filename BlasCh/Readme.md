@@ -1,4 +1,4 @@
-# 🧬 BlasCh recovery module for recovering false positive chimeras 
+# 🧬 BlasCh module for recovering false positive chimeras and detecting false negative chimeras 
 
 [![Python Version](https://img.shields.io/badge/python-3.6%2B-blue)](https://www.python.org/downloads/)
 
@@ -10,7 +10,6 @@ Efficient chimera detection and recovery for long-read sequencing data using mul
 - **Resource Monitoring**: Tracks CPU and memory usage for optimization
 - **Detailed Reporting**: Generates comprehensive overall and per-file statistics
 - **Adaptive Performance**: Automatically utilizes all available CPU cores
-- **Robust Error Handling**: Implements logging for seamless debugging
 - **Sequence Classification**: Categorizes sequences as non-chimeric, chimeric, or borderline
 
 ## 🏃‍♂️ Usage
