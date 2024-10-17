@@ -1,6 +1,6 @@
-##########################################################
-#Top 3 phyla abundance in FASTA files using BLAST results#
-##########################################################
+###########################################################
+##Top 3 phyla abundance in FASTA files using BLAST results#
+###########################################################
 import os
 import pandas as pd
 from Bio import SeqIO
@@ -93,13 +93,15 @@ def plot_phylum_abundance(phylum_counts, output_file, top_n=3):
     df = pd.DataFrame(top_phyla_counts).fillna(0).T
     df.sort_index(axis=0, inplace=True)
 
-    # Define distinct colors for up to 17 phyla
+    # Define distinct colors for up to 30 phyla
     colors = [
-        "#e6194b", "#3cb44b", "#ffe119", "#4363d8", "#f58231", 
-        "#911eb4", "#46f0f0", "#f032e6", "#bcf60c", "#fabebe", 
-        "#008080", "#e6beff", "#9a6324", "#fffac8", "#800000", 
-        "#aaffc3", "#808000"
-    ]
+        "#e6194b", "#3cb44b", "#ffe119", "#4363d8", "#f58231",  # Red, Green, Yellow, Blue, Orange
+        "#911eb4", "#46f0f0", "#f032e6", "#bcf60c", "#fabebe",  # Purple, Cyan, Magenta, Lime, Soft Pink
+        "#008080", "#e6beff", "#9a6324", "#fffac8", "#800000",  # Teal, Lavender, Brown, Pale Yellow, Maroon
+        "#aaffc3", "#808000", "#ffd8b1", "#000075", "#808080",  # Mint Green, Olive, Peach, Navy, Gray
+        "#67001f", "#053061", "#fddbc7", "#c7eae5", "#ca0020",  # Burgundy, Dark Blue, Soft Coral, Light Teal, Dark Red
+        "#0571b0", "#f4a582", "#92c5de", "#4d4d4d", "#d01c8b"   # Medium Blue, Salmon, Sky Blue, Dark Gray, Bright Pink
+]
     
     # Plot
     df.plot(kind='bar', stacked=True, figsize=(15, 10), color=colors[:len(df.columns)])
@@ -109,7 +111,7 @@ def plot_phylum_abundance(phylum_counts, output_file, top_n=3):
     plt.xticks(rotation=45, ha='right')
     plt.legend(title='Phylum', bbox_to_anchor=(1.05, 1), loc='upper left')
     plt.tight_layout()
-    plt.savefig(output_file)
+    plt.savefig(output_file, dpi = 600)
     plt.show()
     print(f"Phylum abundance plot saved to {output_file}")
 
