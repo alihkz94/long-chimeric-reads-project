@@ -389,6 +389,15 @@ if __name__ == "__main__":
 
     try:
         process_all_xml_files(directory, temp_dir, temp_2_dir, output_dir, input_dir)
+
+        # Remove the temp_2 directory after processing
+        if os.path.exists(temp_2_dir):
+            try:
+                shutil.rmtree(temp_2_dir)
+                logging.info(f"Removed {temp_2_dir} directory.")
+            except Exception as e:
+                logging.error(f"Failed to remove {temp_2_dir}. Reason: {e}")
+
         print("Processing complete. Check the rescued_reads folder for final results.")
     except Exception as e:
         logging.error(f"An error occurred during processing: {e}")
