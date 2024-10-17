@@ -1,3 +1,59 @@
+"""
+Chimera Detection and Recovery Module for Metabarcoding and Environmental DNA (eDNA) Analysis
+
+Description:
+    This script processes BLAST XML results to identify, classify, and recover False positive chimeric sequences 
+    from metabarcoding or eDNA datasets. Sequences are categorized into three groups: non-chimeric, absolute 
+    chimeras, and borderline sequences, based on identity and coverage thresholds. It efficiently handles large 
+    datasets using multiprocessing and ensures robust reporting, including logging system resource usage and 
+    detailed sequence-level classification.
+
+Usage:
+    python chimera_recovery.py
+
+Requirements:
+    - Python 3.6+
+    - BioPython
+    - psutil
+
+Dependencies:
+    - os: for file and directory operations
+    - shutil: to copy and remove directories and files
+    - multiprocessing: for parallel processing to speed up analysis
+    - time: to track execution time
+    - psutil: to monitor CPU and memory usage
+    - Bio.Blast.NCBIXML (from BioPython): to parse BLAST XML outputs
+    - Bio.SeqIO (from BioPython): to load and process FASTA files
+    - collections (defaultdict): for efficient grouping of taxonomy data
+    - logging: to provide process monitoring and error reporting
+    - csv: to write detailed sequence classifications to CSV files
+
+Input:
+    - FASTA files containing sequences to be evaluated are located in the specified input directory.
+    - BLAST XML files with alignment results are in the working directory (or a specified directory).
+
+Output:
+    - **FASTA Files**: Classified sequences (non-chimeric, borderline) stored in the output directory.
+    - **CSV Files**: Sequence details, including identity, query coverage, classification, and taxonomy.
+    - **Text Report**: A summary report in the output directory, showing the overall sequence classification.
+    - **Log Files**: Process logs containing system resource usage, file processing details, and error messages.
+
+Configuration:
+    The following variables can be adjusted to customize the script’s behavior:
+    - `input_dir`: Directory containing the input FASTA files.
+    - `directory`: Directory containing BLAST XML files (default: current working directory).
+    - `temp_dir`: Directory to store temporary files.
+    - `temp_2_dir`: Directory to store intermediate files (removed after execution).
+    - `output_dir`: Directory for final output files.
+    - `NUM_PROCESSES`: Number of CPU cores to use (default: all available CPUs minus one).
+    - `HIGH_IDENTITY_THRESHOLD`: Threshold for high identity percentage (default: 99.0).
+    - `HIGH_COVERAGE_THRESHOLD`: Threshold for high query coverage (default: 99.0).
+
+Author: ALI HAKIMZADEH  
+Version: 1.1  
+Date: 2024-10-17
+"""
+
 #load libraries
 import os
 import shutil
@@ -200,7 +256,7 @@ def parse_blast_results(args):
                     ])
 
                 # Periodically write sequence details to prevent memory overflow
-                if len(sequence_details) >= 100000:
+                if len(sequence_details) >= 200000:
                     write_sequence_details(sequence_details, temp_2_dir, fasta_file)
                     sequence_details.clear()
 
