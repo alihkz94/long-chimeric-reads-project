@@ -59,10 +59,9 @@ These thresholds are used to determine high-quality matches against the database
 The script classifies sequences based on the following criteria:
 
 1. **Non-chimeric**: 
-   - No significant non-self hits, or
-   - High-quality match against the database (≥99% identity and ≥99% coverage)
+   High-quality match against the database (≥99% identity and ≥99% coverage)
 2. **Chimeric**: Multiple non-self alignments
-3. **Borderline**: Single alignment, requires further analysis
+3. **Borderline**: Sequences that did not meet the criteria for non-chimeric or chimeric were classified as borderline and required further analysis.
 
 ## 🛠 Dependencies
 
