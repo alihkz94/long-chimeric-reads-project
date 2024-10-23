@@ -4,9 +4,7 @@ Chimera Detection and Recovery Module for Metabarcoding and Environmental DNA (e
 Description:
     This script processes BLAST XML results to identify, classify, and recover False positive chimeric sequences 
     from metabarcoding or eDNA datasets. Sequences are categorized into three groups: non-chimeric, absolute 
-    chimeras, and borderline sequences, based on identity and coverage thresholds. It efficiently handles large 
-    datasets using multiprocessing and ensures robust reporting, including logging system resource usage and 
-    detailed sequence-level classification.
+    chimeras, and borderline sequences, based on identity and coverage thresholds.
 
 Usage:
     python chimera_recovery.py
@@ -51,7 +49,7 @@ Configuration:
 
 Author: ALI HAKIMZADEH  
 Version: 1.1  
-Date: 2024-10-17
+Date: 2024-10-23
 """
 
 #load libraries
@@ -118,44 +116,69 @@ def extract_taxonomy(hit_def):
 def analyze_blast_hits(blast_record, query_id):
     """Analyze BLAST hits for a given blast record by processing all HSPs."""
     hits_info = []
+    
+    # Check if there are any alignments
+    if not blast_record.alignments:
+        return hits_info
+        
+    # Process first hit
+    first_alignment = blast_record.alignments[0]
+    first_hit_id = extract_query_id(first_alignment.hit_def)
+    
+    # If first hit is not self-hit, check for multiple HSPs
+    if first_hit_id != query_id:
+        if len(first_alignment.hsps) > 1:
+            # If multiple HSPs found in first non-self hit, mark as chimeric
+            return [{
+                "hit_id": first_hit_id,
+                "identity": 100,  # Placeholder values since we're marking as chimeric
+                "coverage": 100,
+                "is_same_sample": False,
+                "taxonomy": extract_taxonomy(first_alignment.hit_def),
+                "force_chimeric": True  # New flag to force chimeric classification
+            }]
+    
+    # If first hit was self-hit or didn't have multiple HSPs, process all hits normally
     for alignment in blast_record.alignments:
         if not alignment.hsps:
-            continue  # Skip if there are no HSPs
+            continue
+            
         hit_def = alignment.hit_def
-        hit_id = extract_query_id(alignment.hit_def)
+        hit_id = extract_query_id(hit_def)
 
-        # Skip self-hits where hit_id equals query_id
+        # Skip self-hits
         if hit_id == query_id:
             continue
 
-        # Determine if this is a self-hit or database hit
         is_same_sample = is_self_hit(hit_def)
-
-        # Extract taxonomy for database hits
         taxonomy = extract_taxonomy(hit_def) if not is_same_sample else "Self"
 
         for hsp in alignment.hsps:
-            # Calculate identity and coverage for each HSP
             identity_percentage = (hsp.identities / hsp.align_length) * 100 if hsp.align_length > 0 else 0
-            coverage_percentage = min((hsp.align_length / blast_record.query_length) * 100, 100)  # Ensure max coverage is 100
+            coverage_percentage = min((hsp.align_length / blast_record.query_length) * 100, 100)
 
             hits_info.append({
                 "hit_id": hit_id,
                 "identity": identity_percentage,
                 "coverage": coverage_percentage,
                 "is_same_sample": is_same_sample,
-                "taxonomy": taxonomy
+                "taxonomy": taxonomy,
+                "force_chimeric": False
             })
 
     return hits_info
 
 def classify_sequence(hits_info):
     """
-    Classify sequence based on hit information and criteria.
+    Classify sequence based on hit information and updated criteria.
     Returns a tuple: (classification, reason)
     """
     if not hits_info:
         return "non_chimeric", "No significant non-self hits"
+
+    # Check if any hit is forced to be chimeric (multiple HSPs in first non-self hit)
+    if any(hit.get("force_chimeric", False) for hit in hits_info):
+        return "chimeric", "Multiple alignments in first non-self hit"
 
     # Use sets for membership tests
     database_hits = [hit for hit in hits_info if not hit["is_same_sample"]]
@@ -165,6 +188,7 @@ def classify_sequence(hits_info):
         return "chimeric", "Only self-hits, no database hits"
 
     if database_hits:
+        # Check for high-quality matches first
         high_quality_db_hits = [
             hit for hit in database_hits
             if hit["identity"] >= HIGH_IDENTITY_THRESHOLD
@@ -173,7 +197,69 @@ def classify_sequence(hits_info):
         if high_quality_db_hits:
             return "non_chimeric", "High-quality match against database"
 
-        # Use defaultdict for taxonomy grouping
+        # Group hits by taxonomy
+        taxonomy_groups = defaultdict(list)
+        for hit in database_hits:
+            taxonomy_groups[hit["taxonomy"]].append(hit)
+
+        unique_taxa = len(taxonomy_groups)
+
+        if unique_taxa == 1:
+            # This would normally be borderline - check for high coverage
+            high_coverage_hits = [
+                hit for hit in database_hits
+                if hit["coverage"] >= 89.0
+            ]
+            if high_coverage_hits:
+                return "non_chimeric", "Borderline sequence with database hit coverage >= 89%"
+            return "borderline", "Multiple database hits pointing to the same taxa, none high-quality"
+        else:
+            return "chimeric", "Multiple database hits pointing to different taxa, none high-quality"
+
+    return "borderline", "Ambiguous classification"
+
+def classify_sequence(hits_info):
+    """
+    Classify sequence based on hit information and updated criteria.
+    Returns a tuple: (classification, reason)
+    """
+    if not hits_info:
+        return "non_chimeric", "No significant non-self hits"
+
+    # Check if any hit is forced to be chimeric (multiple HSPs in first non-self hit)
+    if any(hit.get("force_chimeric", False) for hit in hits_info):
+        return "chimeric", "Multiple alignments in first non-self hit"
+
+    # Separate database hits and self hits
+    database_hits = [hit for hit in hits_info if not hit["is_same_sample"]]
+    self_hits = [hit for hit in hits_info if hit["is_same_sample"]]
+
+    if not database_hits and self_hits:
+        return "chimeric", "Only self-hits, no database hits"
+
+    if database_hits:
+        # Check for high-quality matches first
+        high_quality_db_hits = [
+            hit for hit in database_hits
+            if hit["identity"] >= HIGH_IDENTITY_THRESHOLD
+            and hit["coverage"] >= HIGH_COVERAGE_THRESHOLD
+        ]
+        if high_quality_db_hits:
+            return "non_chimeric", "High-quality match against database"
+
+        # Check for database hits with high coverage (≥89%)
+        high_coverage_db_hits = [
+            hit for hit in database_hits
+            if hit["coverage"] >= 89.0
+        ]
+        
+        # If any database hit has coverage ≥89%, classify as non-chimeric
+        if high_coverage_db_hits:
+            max_coverage_hit = max(high_coverage_db_hits, key=lambda x: x["coverage"])
+            return "non_chimeric", f"Database hit with high coverage ({max_coverage_hit['coverage']:.2f}%)"
+
+        # If we reach here, no high coverage hits were found
+        # Group remaining hits by taxonomy
         taxonomy_groups = defaultdict(list)
         for hit in database_hits:
             taxonomy_groups[hit["taxonomy"]].append(hit)
@@ -186,6 +272,63 @@ def classify_sequence(hits_info):
             return "chimeric", "Multiple database hits pointing to different taxa, none high-quality"
 
     return "borderline", "Ambiguous classification"
+
+def analyze_blast_hits(blast_record, query_id):
+    """Analyze BLAST hits for a given blast record by processing all HSPs."""
+    hits_info = []
+    
+    # Check if there are any alignments
+    if not blast_record.alignments:
+        return hits_info
+        
+    # Process first hit
+    first_alignment = blast_record.alignments[0]
+    first_hit_id = extract_query_id(first_alignment.hit_def)
+    
+    # If first hit is not self-hit, check for multiple HSPs
+    if first_hit_id != query_id:
+        if len(first_alignment.hsps) > 1:
+            # If multiple HSPs found in first non-self hit, mark as chimeric
+            return [{
+                "hit_id": first_hit_id,
+                "identity": 100,  # Placeholder values since we're marking as chimeric
+                "coverage": 100,
+                "is_same_sample": False,
+                "taxonomy": extract_taxonomy(first_alignment.hit_def),
+                "force_chimeric": True  # New flag to force chimeric classification
+            }]
+    
+    # Process all hits
+    for alignment in blast_record.alignments:
+        if not alignment.hsps:
+            continue
+            
+        hit_def = alignment.hit_def
+        hit_id = extract_query_id(hit_def)
+
+        # Skip self-hits
+        if hit_id == query_id:
+            continue
+
+        is_same_sample = is_self_hit(hit_def)
+        taxonomy = extract_taxonomy(hit_def) if not is_same_sample else "Self"
+
+        # Get the highest coverage HSP for this hit
+        best_hsp = max(alignment.hsps, key=lambda hsp: (hsp.align_length / blast_record.query_length) * 100)
+        
+        identity_percentage = (best_hsp.identities / best_hsp.align_length) * 100 if best_hsp.align_length > 0 else 0
+        coverage_percentage = min((best_hsp.align_length / blast_record.query_length) * 100, 100)
+
+        hits_info.append({
+            "hit_id": hit_id,
+            "identity": identity_percentage,
+            "coverage": coverage_percentage,
+            "is_same_sample": is_same_sample,
+            "taxonomy": taxonomy,
+            "force_chimeric": False
+        })
+
+    return hits_info
 
 def clean_directory(dir_path):
     """Remove all contents within a directory without deleting the directory itself."""
@@ -256,7 +399,7 @@ def parse_blast_results(args):
                     ])
 
                 # Periodically write sequence details to prevent memory overflow
-                if len(sequence_details) >= 200000:
+                if len(sequence_details) >= 300000:
                     write_sequence_details(sequence_details, temp_2_dir, fasta_file)
                     sequence_details.clear()
 
@@ -446,13 +589,13 @@ if __name__ == "__main__":
     try:
         process_all_xml_files(directory, temp_dir, temp_2_dir, output_dir, input_dir)
 
-        # Remove the temp_2 directory after processing
-        if os.path.exists(temp_2_dir):
+        # Remove the temp directory after processing
+        if os.path.exists(temp_dir):
             try:
-                shutil.rmtree(temp_2_dir)
-                logging.info(f"Removed {temp_2_dir} directory.")
+                shutil.rmtree(temp_dir)
+                logging.info(f"Removed {temp_dir} directory.")
             except Exception as e:
-                logging.error(f"Failed to remove {temp_2_dir}. Reason: {e}")
+                logging.error(f"Failed to remove {temp_dir}. Reason: {e}")
 
         print("Processing complete. Check the rescued_reads folder for final results.")
     except Exception as e:
