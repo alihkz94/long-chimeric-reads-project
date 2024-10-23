@@ -138,7 +138,7 @@ def analyze_blast_hits(blast_record, query_id):
                 "force_chimeric": True  # New flag to force chimeric classification
             }]
     
-    # If first hit was self-hit or didn't have multiple HSPs, process all hits normally
+    # Process all hits
     for alignment in blast_record.alignments:
         if not alignment.hsps:
             continue
@@ -153,70 +153,22 @@ def analyze_blast_hits(blast_record, query_id):
         is_same_sample = is_self_hit(hit_def)
         taxonomy = extract_taxonomy(hit_def) if not is_same_sample else "Self"
 
-        for hsp in alignment.hsps:
-            identity_percentage = (hsp.identities / hsp.align_length) * 100 if hsp.align_length > 0 else 0
-            coverage_percentage = min((hsp.align_length / blast_record.query_length) * 100, 100)
+        # Get the highest coverage HSP for this hit
+        best_hsp = max(alignment.hsps, key=lambda hsp: (hsp.align_length / blast_record.query_length) * 100)
+        
+        identity_percentage = (best_hsp.identities / best_hsp.align_length) * 100 if best_hsp.align_length > 0 else 0
+        coverage_percentage = min((best_hsp.align_length / blast_record.query_length) * 100, 100)
 
-            hits_info.append({
-                "hit_id": hit_id,
-                "identity": identity_percentage,
-                "coverage": coverage_percentage,
-                "is_same_sample": is_same_sample,
-                "taxonomy": taxonomy,
-                "force_chimeric": False
-            })
+        hits_info.append({
+            "hit_id": hit_id,
+            "identity": identity_percentage,
+            "coverage": coverage_percentage,
+            "is_same_sample": is_same_sample,
+            "taxonomy": taxonomy,
+            "force_chimeric": False
+        })
 
     return hits_info
-
-def classify_sequence(hits_info):
-    """
-    Classify sequence based on hit information and updated criteria.
-    Returns a tuple: (classification, reason)
-    """
-    if not hits_info:
-        return "non_chimeric", "No significant non-self hits"
-
-    # Check if any hit is forced to be chimeric (multiple HSPs in first non-self hit)
-    if any(hit.get("force_chimeric", False) for hit in hits_info):
-        return "chimeric", "Multiple alignments in first non-self hit"
-
-    # Use sets for membership tests
-    database_hits = [hit for hit in hits_info if not hit["is_same_sample"]]
-    self_hits = [hit for hit in hits_info if hit["is_same_sample"]]
-
-    if not database_hits and self_hits:
-        return "chimeric", "Only self-hits, no database hits"
-
-    if database_hits:
-        # Check for high-quality matches first
-        high_quality_db_hits = [
-            hit for hit in database_hits
-            if hit["identity"] >= HIGH_IDENTITY_THRESHOLD
-            and hit["coverage"] >= HIGH_COVERAGE_THRESHOLD
-        ]
-        if high_quality_db_hits:
-            return "non_chimeric", "High-quality match against database"
-
-        # Group hits by taxonomy
-        taxonomy_groups = defaultdict(list)
-        for hit in database_hits:
-            taxonomy_groups[hit["taxonomy"]].append(hit)
-
-        unique_taxa = len(taxonomy_groups)
-
-        if unique_taxa == 1:
-            # This would normally be borderline - check for high coverage
-            high_coverage_hits = [
-                hit for hit in database_hits
-                if hit["coverage"] >= 89.0
-            ]
-            if high_coverage_hits:
-                return "non_chimeric", "Borderline sequence with database hit coverage >= 89%"
-            return "borderline", "Multiple database hits pointing to the same taxa, none high-quality"
-        else:
-            return "chimeric", "Multiple database hits pointing to different taxa, none high-quality"
-
-    return "borderline", "Ambiguous classification"
 
 def classify_sequence(hits_info):
     """
@@ -258,7 +210,6 @@ def classify_sequence(hits_info):
             max_coverage_hit = max(high_coverage_db_hits, key=lambda x: x["coverage"])
             return "non_chimeric", f"Database hit with high coverage ({max_coverage_hit['coverage']:.2f}%)"
 
-        # If we reach here, no high coverage hits were found
         # Group remaining hits by taxonomy
         taxonomy_groups = defaultdict(list)
         for hit in database_hits:
@@ -272,159 +223,6 @@ def classify_sequence(hits_info):
             return "chimeric", "Multiple database hits pointing to different taxa, none high-quality"
 
     return "borderline", "Ambiguous classification"
-
-def analyze_blast_hits(blast_record, query_id):
-    """Analyze BLAST hits for a given blast record by processing all HSPs."""
-    hits_info = []
-    
-    # Check if there are any alignments
-    if not blast_record.alignments:
-        return hits_info
-        
-    # Process first hit
-    first_alignment = blast_record.alignments[0]
-    first_hit_id = extract_query_id(first_alignment.hit_def)
-    
-    # If first hit is not self-hit, check for multiple HSPs
-    if first_hit_id != query_id:
-        if len(first_alignment.hsps) > 1:
-            # If multiple HSPs found in first non-self hit, mark as chimeric
-            return [{
-                "hit_id": first_hit_id,
-                "identity": 100,  # Placeholder values since we're marking as chimeric
-                "coverage": 100,
-                "is_same_sample": False,
-                "taxonomy": extract_taxonomy(first_alignment.hit_def),
-                "force_chimeric": True  # New flag to force chimeric classification
-            }]
-    
-    # Process all hits
-    for alignment in blast_record.alignments:
-        if not alignment.hsps:
-            continue
-            
-        hit_def = alignment.hit_def
-        hit_id = extract_query_id(hit_def)
-
-        # Skip self-hits
-        if hit_id == query_id:
-            continue
-
-        is_same_sample = is_self_hit(hit_def)
-        taxonomy = extract_taxonomy(hit_def) if not is_same_sample else "Self"
-
-        # Get the highest coverage HSP for this hit
-        best_hsp = max(alignment.hsps, key=lambda hsp: (hsp.align_length / blast_record.query_length) * 100)
-        
-        identity_percentage = (best_hsp.identities / best_hsp.align_length) * 100 if best_hsp.align_length > 0 else 0
-        coverage_percentage = min((best_hsp.align_length / blast_record.query_length) * 100, 100)
-
-        hits_info.append({
-            "hit_id": hit_id,
-            "identity": identity_percentage,
-            "coverage": coverage_percentage,
-            "is_same_sample": is_same_sample,
-            "taxonomy": taxonomy,
-            "force_chimeric": False
-        })
-
-    return hits_info
-
-def clean_directory(dir_path):
-    """Remove all contents within a directory without deleting the directory itself."""
-    if not os.path.exists(dir_path):
-        os.makedirs(dir_path, exist_ok=True)
-        return
-    for filename in os.listdir(dir_path):
-        file_path = os.path.join(dir_path, filename)
-        try:
-            if os.path.isfile(file_path) or os.path.islink(file_path):
-                os.unlink(file_path)  # Remove file or symbolic link
-            elif os.path.isdir(file_path):
-                shutil.rmtree(file_path)  # Remove directory and its contents
-        except Exception as e:
-            logging.error(f'Failed to delete {file_path}. Reason: {e}')
-
-def parse_blast_results(args):
-    """Parse BLAST XML results and classify sequences into different categories."""
-    xml_file, temp_dir, temp_2_dir, fasta_file = args
-    logging.info(f"Starting processing for {xml_file}")
-    
-    try:
-        fasta_sequences = load_fasta_sequences(fasta_file)
-    except FileNotFoundError as e:
-        logging.error(e)
-        return set(), set(), set()
-    except Exception as e:
-        logging.error(f"Error loading FASTA file {fasta_file}: {e}")
-        return set(), set(), set()
-
-    non_chimeric_sequences = set()
-    chimeric_sequences = set()
-    borderline_sequences = set()
-
-    sequence_details = []
-
-    try:
-        with open(xml_file) as result_handle:
-            blast_records = NCBIXML.parse(result_handle)
-            for blast_record in blast_records:
-                query_id = extract_query_id(blast_record.query)
-                fasta_seq = fasta_sequences.get(query_id)  # Avoid repeated dictionary lookups
-                if fasta_seq is None:
-                    continue
-
-                hits_info = analyze_blast_hits(blast_record, query_id)
-                classification, reason = classify_sequence(hits_info)
-                
-                if classification == "non_chimeric":
-                    non_chimeric_sequences.add(query_id)
-                elif classification == "chimeric":
-                    chimeric_sequences.add(query_id)
-                else:
-                    borderline_sequences.add(query_id)
-                
-                logging.debug(f"{query_id} classified as {classification} ({reason})")
-                
-                # Add details for all hits
-                for i, hit in enumerate(hits_info, 1):
-                    sequence_details.append([
-                        query_id, 
-                        f"{hit['coverage']:.2f}", 
-                        f"{hit['identity']:.2f}", 
-                        classification,
-                        f"Hit {i}",
-                        "Same sample" if hit["is_same_sample"] else "Database",
-                        hit["taxonomy"]
-                    ])
-
-                # Periodically write sequence details to prevent memory overflow
-                if len(sequence_details) >= 300000:
-                    write_sequence_details(sequence_details, temp_2_dir, fasta_file)
-                    sequence_details.clear()
-
-    except Exception as e:
-        logging.error(f"Error processing {xml_file}: {e}")
-        return set(), set(), set()
-
-    # Write any remaining sequence details
-    if sequence_details:
-        write_sequence_details(sequence_details, temp_2_dir, fasta_file)
-        sequence_details.clear()
-
-    # Write sequences to output files for non-chimeric and borderline only
-    base_filename = os.path.basename(fasta_file).replace(".chimeras.fasta", "")
-    if non_chimeric_sequences:
-        write_sequences_to_file(non_chimeric_sequences, fasta_sequences, os.path.join(temp_dir, f"{base_filename}_non_chimeric.fasta"))
-    if borderline_sequences:
-        write_sequences_to_file(borderline_sequences, fasta_sequences, os.path.join(temp_dir, f"{base_filename}_borderline.fasta"))
-    
-    # Chimeric sequences stay in the temp folder
-    if chimeric_sequences:
-        write_sequences_to_file(chimeric_sequences, fasta_sequences, os.path.join(temp_2_dir, f"{base_filename}_chimeric.fasta"))
-
-    logging.info(f"Completed processing for {xml_file}")
-    return non_chimeric_sequences, chimeric_sequences, borderline_sequences
 
 def write_sequences_to_file(seq_ids, fasta_sequences, output_file):
     """Write sequences to a FASTA file only if seq_ids is not empty."""
@@ -459,13 +257,125 @@ def write_sequence_details(details, temp_2_dir, fasta_file):
     except Exception as e:
         logging.error(f"Error writing sequence details to {csv_file_path}: {e}")
 
-def generate_report(all_non_chimeric_sequences, all_chimeric_sequences, all_borderline_chimeras, file_results, output_dir):
+def clean_directory(dir_path):
+    """Remove all contents within a directory without deleting the directory itself."""
+    if not os.path.exists(dir_path):
+        os.makedirs(dir_path, exist_ok=True)
+        return
+    for filename in os.listdir(dir_path):
+        file_path = os.path.join(dir_path, filename)
+        try:
+            if os.path.isfile(file_path) or os.path.islink(file_path):
+                os.unlink(file_path)  # Remove file or symbolic link
+            elif os.path.isdir(file_path):
+                shutil.rmtree(file_path)  # Remove directory and its contents
+        except Exception as e:
+            logging.error(f'Failed to delete {file_path}. Reason: {e}')
+
+def parse_blast_results(args):
+    """Parse BLAST XML results and classify sequences into different categories."""
+    xml_file, temp_dir, temp_2_dir, fasta_file = args
+    logging.info(f"Starting processing for {xml_file}")
+    
+    try:
+        fasta_sequences = load_fasta_sequences(fasta_file)
+    except FileNotFoundError as e:
+        logging.error(e)
+        return set(), set(), set(), set()  # Added new set for multiple alignments
+    except Exception as e:
+        logging.error(f"Error loading FASTA file {fasta_file}: {e}")
+        return set(), set(), set(), set()
+
+    non_chimeric_sequences = set()
+    chimeric_sequences = set()
+    borderline_sequences = set()
+    multiple_alignment_sequences = set()  # New set for multiple alignment sequences
+
+    sequence_details = []
+
+    try:
+        with open(xml_file) as result_handle:
+            blast_records = NCBIXML.parse(result_handle)
+            for blast_record in blast_records:
+                query_id = extract_query_id(blast_record.query)
+                fasta_seq = fasta_sequences.get(query_id)
+                if fasta_seq is None:
+                    continue
+
+                hits_info = analyze_blast_hits(blast_record, query_id)
+                
+                # Check if this is a multiple alignment case
+                is_multiple_alignment = any(hit.get("force_chimeric", False) for hit in hits_info)
+                
+                if is_multiple_alignment:
+                    multiple_alignment_sequences.add(query_id)
+                    classification = "multiple_alignment"
+                else:
+                    classification, reason = classify_sequence(hits_info)
+                    if classification == "non_chimeric":
+                        non_chimeric_sequences.add(query_id)
+                    elif classification == "chimeric":
+                        chimeric_sequences.add(query_id)
+                    else:
+                        borderline_sequences.add(query_id)
+                
+                logging.debug(f"{query_id} classified as {classification}")
+                
+                # Add details for all hits
+                for i, hit in enumerate(hits_info, 1):
+                    sequence_details.append([
+                        query_id, 
+                        f"{hit['coverage']:.2f}", 
+                        f"{hit['identity']:.2f}", 
+                        classification,
+                        f"Hit {i}",
+                        "Same sample" if hit["is_same_sample"] else "Database",
+                        hit["taxonomy"]
+                    ])
+
+                # Periodically write sequence details
+                if len(sequence_details) >= 300000:
+                    write_sequence_details(sequence_details, temp_2_dir, fasta_file)
+                    sequence_details.clear()
+
+    except Exception as e:
+        logging.error(f"Error processing {xml_file}: {e}")
+        return set(), set(), set(), set()
+
+    # Write any remaining sequence details
+    if sequence_details:
+        write_sequence_details(sequence_details, temp_2_dir, fasta_file)
+        sequence_details.clear()
+
+    # Write sequences to respective files
+    base_filename = os.path.basename(fasta_file).replace(".chimeras.fasta", "")
+    
+    if non_chimeric_sequences:
+        write_sequences_to_file(non_chimeric_sequences, fasta_sequences, 
+                              os.path.join(temp_dir, f"{base_filename}_non_chimeric.fasta"))
+    if borderline_sequences:
+        write_sequences_to_file(borderline_sequences, fasta_sequences, 
+                              os.path.join(temp_dir, f"{base_filename}_borderline.fasta"))
+    if chimeric_sequences:
+        write_sequences_to_file(chimeric_sequences, fasta_sequences, 
+                              os.path.join(temp_2_dir, f"{base_filename}_chimeric.fasta"))
+    if multiple_alignment_sequences:  # New file for multiple alignment sequences
+        write_sequences_to_file(multiple_alignment_sequences, fasta_sequences, 
+                              os.path.join(temp_2_dir, f"{base_filename}_multiple_alignments.fasta"))
+
+    logging.info(f"Completed processing for {xml_file}")
+    return non_chimeric_sequences, chimeric_sequences, borderline_sequences, multiple_alignment_sequences
+
+def generate_report(all_non_chimeric_sequences, all_chimeric_sequences, 
+                   all_borderline_chimeras, all_multiple_alignments, 
+                   file_results, output_dir):
     """Generate a detailed report summarizing the results, sorted by file name."""
     try:
         report = {
             "Non-Chimeric Sequences": len(all_non_chimeric_sequences),
             "Chimeric Sequences": len(all_chimeric_sequences),
-            "Borderline Sequences": len(all_borderline_chimeras)
+            "Borderline Sequences": len(all_borderline_chimeras),
+            "Multiple Alignment Sequences": len(all_multiple_alignments)  # Added to report
         }
 
         total_sequences = sum(report.values())
@@ -510,6 +420,7 @@ def process_all_xml_files(directory, temp_dir, temp_2_dir, output_dir, input_dir
     all_non_chimeric_sequences = set()
     all_chimeric_sequences = set()
     all_borderline_chimeras = set()
+    all_multiple_alignments = set()  # New set for tracking all multiple alignments
 
     start_time = time.time()
     log_system_usage()
@@ -535,18 +446,19 @@ def process_all_xml_files(directory, temp_dir, temp_2_dir, output_dir, input_dir
 
     # Merge all results
     for i, result in enumerate(results):
-        non_chimeric_sequences, chimeric_sequences, borderline_sequences = result
+        non_chimeric_sequences, chimeric_sequences, borderline_sequences, multiple_alignments = result
         all_non_chimeric_sequences.update(non_chimeric_sequences)
         all_chimeric_sequences.update(chimeric_sequences)
         all_borderline_chimeras.update(borderline_sequences)
+        all_multiple_alignments.update(multiple_alignments)
         
         xml_file = args_list[i][0]
         file_results[xml_file] = {
             "Non-Chimeric Sequences": len(non_chimeric_sequences),
             "Chimeric Sequences": len(chimeric_sequences),
-            "Borderline Sequences": len(borderline_sequences)
+            "Borderline Sequences": len(borderline_sequences),
+            "Multiple Alignment Sequences": len(multiple_alignments)  # Added to results
         }
-
     # Combine non-chimeric, chimeric, and borderline sequences into final output
     for filename in os.listdir(input_dir):
         if filename.endswith(".chimeras.fasta"):
@@ -562,8 +474,11 @@ def process_all_xml_files(directory, temp_dir, temp_2_dir, output_dir, input_dir
             if os.path.exists(borderline_file):
                 shutil.copy(borderline_file, os.path.join(output_dir, f"{base_filename}_borderline.fasta"))
                 logging.info(f"Copied {borderline_file} to output directory.")
-            
-    generate_report(all_non_chimeric_sequences, all_chimeric_sequences, all_borderline_chimeras, file_results, output_dir)
+
+    # Update the report generation to include multiple alignments
+    generate_report(all_non_chimeric_sequences, all_chimeric_sequences, 
+                   all_borderline_chimeras, all_multiple_alignments, 
+                   file_results, output_dir)
 
     log_system_usage()
 
