@@ -1,14 +1,15 @@
 """
-Chimera recovery module for Long-Read Sequencing
+Chimera Detection and Recovery Module for Metabarcoding and Environmental DNA (eDNA) Analysis
 
 Description:
-    This script processes BLAST XML results to identify and classify chimeric sequences in long-read sequencing data.
-    It categorizes sequences as false positive chimeras, absolute chimeras, and borderline sequences
-    based on specified alignment criteria. The script utilizes multiprocessing to efficiently handle large datasets
-    and includes monitoring system resource usage.
+    This script processes BLAST XML results to identify, classify, and recover False positive chimeric sequences 
+    from metabarcoding or eDNA datasets. Sequences are categorized into three groups: non-chimeric, absolute 
+    chimeras, and borderline sequences, based on identity and coverage thresholds. It efficiently handles large 
+    datasets using multiprocessing and ensures robust reporting, including logging system resource usage and 
+    detailed sequence-level classification.
 
 Usage:
-    python BlasCh.py
+    python chimera_recovery.py
 
 Requirements:
     - Python 3.6+
@@ -16,43 +17,44 @@ Requirements:
     - psutil
 
 Dependencies:
-    - os
-    - shutil
-    - multiprocessing
-    - time
-    - psutil
-    - Bio.Blast.NCBIXML (from BioPython)
-    - Bio.SeqIO (from BioPython)
-    - collections (defaultdict)
-    - logging
-    - csv
+    - os: for file and directory operations
+    - shutil: to copy and remove directories and files
+    - multiprocessing: for parallel processing to speed up analysis
+    - time: to track execution time
+    - psutil: to monitor CPU and memory usage
+    - Bio.Blast.NCBIXML (from BioPython): to parse BLAST XML outputs
+    - Bio.SeqIO (from BioPython): to load and process FASTA files
+    - collections (defaultdict): for efficient grouping of taxonomy data
+    - logging: to provide process monitoring and error reporting
+    - csv: to write detailed sequence classifications to CSV files
 
 Input:
-    - FASTA files in the specified input directory
-    - BLAST XML result files in the specified directory
+    - FASTA files containing sequences to be evaluated are located in the specified input directory.
+    - BLAST XML files with alignment results are in the working directory (or a specified directory).
 
 Output:
-    - Classified sequences in separate FASTA files within the output directory
-    - Detailed report file summarizing overall and per-file results
-    - Log file with process information and system resource usage
-    - CSV file with sequence details, including query coverage, identity, and classification
+    - **FASTA Files**: Classified sequences (non-chimeric, borderline) stored in the output directory.
+    - **CSV Files**: Sequence details, including identity, query coverage, classification, and taxonomy.
+    - **Text Report**: A summary report in the output directory, showing the overall sequence classification.
+    - **Log Files**: Process logs containing system resource usage, file processing details, and error messages.
 
 Configuration:
-    Modify the following variables at the beginning of the script to customize paths and thresholds:
-    - input_dir: Directory containing input FASTA files
-    - directory: Directory containing BLAST XML files (current directory by default)
-    - temp_dir: Directory for storing temporary files
-    - output_dir: Directory for storing output files
-    - NUM_PROCESSES: Number of processes to use for multiprocessing (automatically set to CPU count)
-    - HIGH_IDENTITY_THRESHOLD: Threshold for high identity percentage (99.0)
-    - HIGH_COVERAGE_THRESHOLD: Threshold for high query coverage (99.0)
+    The following variables can be adjusted to customize the script’s behavior:
+    - `input_dir`: Directory containing the input FASTA files.
+    - `directory`: Directory containing BLAST XML files (default: current working directory).
+    - `temp_dir`: Directory to store temporary files.
+    - `temp_2_dir`: Directory to store intermediate files (removed after execution).
+    - `output_dir`: Directory for final output files.
+    - `NUM_PROCESSES`: Number of CPU cores to use (default: all available CPUs minus one).
+    - `HIGH_IDENTITY_THRESHOLD`: Threshold for high identity percentage (default: 99.0).
+    - `HIGH_COVERAGE_THRESHOLD`: Threshold for high query coverage (default: 99.0).
 
-Author: ALI HAKIMZADEH
-Version: 1.0
-Date: 2024-09-29
+Author: ALI HAKIMZADEH  
+Version: 1.1  
+Date: 2024-10-17
 """
 
-# Load Libraries 
+#load libraries
 import os
 import shutil
 import multiprocessing
@@ -72,7 +74,7 @@ HIGH_IDENTITY_THRESHOLD = 99.0
 HIGH_COVERAGE_THRESHOLD = 99.0
 
 # Dynamically determine the number of CPUs to use for multiprocessing
-NUM_PROCESSES = max(1, multiprocessing.cpu_count()-1)
+NUM_PROCESSES = max(1, multiprocessing.cpu_count() - 1)  
 
 def log_system_usage():
     """Logs the current CPU and RAM usage."""
@@ -96,56 +98,109 @@ def extract_query_id(blast_query_def):
     """Extract the query ID from the BLAST query definition."""
     return blast_query_def
 
+def is_self_hit(hit_def):
+    """
+    Determine if a hit is a self-hit based on the presence of ';size=' in hit_def.
+    """
+    return ';size=' in hit_def
+
+def extract_taxonomy(hit_def):
+    """
+    Extract taxonomy information from Hit_def.
+    Assumes taxonomy starts after the first semicolon.
+    """
+    try:
+        taxonomy = hit_def.split(';', 1)[1]
+    except IndexError:
+        taxonomy = "Unclassified"
+    return taxonomy
+
 def analyze_blast_hits(blast_record, query_id):
-    """Analyze BLAST hits for a given blast record."""
+    """Analyze BLAST hits for a given blast record by processing all HSPs."""
     hits_info = []
-    self_hit = None
     for alignment in blast_record.alignments:
         if not alignment.hsps:
             continue  # Skip if there are no HSPs
-        hsp = alignment.hsps[0]  # Consider only the best HSP for each alignment
+        hit_def = alignment.hit_def
         hit_id = extract_query_id(alignment.hit_def)
-        
-        # Skip self-hits (criterion 1)
-        if hit_id == query_id:
-            self_hit = {
-                "hit_id": hit_id,
-                "identity": (hsp.identities / hsp.align_length) * 100,
-                "coverage": min((hsp.align_length / blast_record.query_length) * 100, 100),
-                "is_same_sample": "size=" in hit_id
-            }
-            continue
-        
-        hits_info.append({
-            "hit_id": hit_id,
-            "identity": (hsp.identities / hsp.align_length) * 100,
-            "coverage": min((hsp.align_length / blast_record.query_length) * 100, 100),
-            "is_same_sample": "size=" in hit_id
-        })
-    
-    return hits_info, self_hit
 
-def classify_sequence(hits_info, self_hit):
-    """Classify sequence based on hit information and criteria."""
+        # Skip self-hits where hit_id equals query_id
+        if hit_id == query_id:
+            continue
+
+        # Determine if this is a self-hit or database hit
+        is_same_sample = is_self_hit(hit_def)
+
+        # Extract taxonomy for database hits
+        taxonomy = extract_taxonomy(hit_def) if not is_same_sample else "Self"
+
+        for hsp in alignment.hsps:
+            # Calculate identity and coverage for each HSP
+            identity_percentage = (hsp.identities / hsp.align_length) * 100 if hsp.align_length > 0 else 0
+            coverage_percentage = min((hsp.align_length / blast_record.query_length) * 100, 100)  # Ensure max coverage is 100
+
+            hits_info.append({
+                "hit_id": hit_id,
+                "identity": identity_percentage,
+                "coverage": coverage_percentage,
+                "is_same_sample": is_same_sample,
+                "taxonomy": taxonomy
+            })
+
+    return hits_info
+
+def classify_sequence(hits_info):
+    """
+    Classify sequence based on hit information and criteria.
+    Returns a tuple: (classification, reason)
+    """
     if not hits_info:
         return "non_chimeric", "No significant non-self hits"
-    
-    # Criterion 2: Certain false positive (non-chimeric)
-    high_quality_db_hit = any(
-        hit["identity"] >= HIGH_IDENTITY_THRESHOLD and 
-        hit["coverage"] >= HIGH_COVERAGE_THRESHOLD and 
-        not hit["is_same_sample"]
-        for hit in hits_info
-    )
-    if high_quality_db_hit:
-        return "non_chimeric", "High-quality match against database"
-    
-    # Criterion 3: Certain true positive chimeras (multiple alignments)
-    if len(hits_info) > 1:
-        return "chimeric", "Multiple non-self alignments"
-    
-    # Criterion 4: Middle-ground sequences (borderline)
-    return "borderline", "Single alignment, requires further analysis"
+
+    # Use sets for membership tests
+    database_hits = [hit for hit in hits_info if not hit["is_same_sample"]]
+    self_hits = [hit for hit in hits_info if hit["is_same_sample"]]
+
+    if not database_hits and self_hits:
+        return "chimeric", "Only self-hits, no database hits"
+
+    if database_hits:
+        high_quality_db_hits = [
+            hit for hit in database_hits
+            if hit["identity"] >= HIGH_IDENTITY_THRESHOLD
+            and hit["coverage"] >= HIGH_COVERAGE_THRESHOLD
+        ]
+        if high_quality_db_hits:
+            return "non_chimeric", "High-quality match against database"
+
+        # Use defaultdict for taxonomy grouping
+        taxonomy_groups = defaultdict(list)
+        for hit in database_hits:
+            taxonomy_groups[hit["taxonomy"]].append(hit)
+
+        unique_taxa = len(taxonomy_groups)
+
+        if unique_taxa == 1:
+            return "borderline", "Multiple database hits pointing to the same taxa, none high-quality"
+        else:
+            return "chimeric", "Multiple database hits pointing to different taxa, none high-quality"
+
+    return "borderline", "Ambiguous classification"
+
+def clean_directory(dir_path):
+    """Remove all contents within a directory without deleting the directory itself."""
+    if not os.path.exists(dir_path):
+        os.makedirs(dir_path, exist_ok=True)
+        return
+    for filename in os.listdir(dir_path):
+        file_path = os.path.join(dir_path, filename)
+        try:
+            if os.path.isfile(file_path) or os.path.islink(file_path):
+                os.unlink(file_path)  # Remove file or symbolic link
+            elif os.path.isdir(file_path):
+                shutil.rmtree(file_path)  # Remove directory and its contents
+        except Exception as e:
+            logging.error(f'Failed to delete {file_path}. Reason: {e}')
 
 def parse_blast_results(args):
     """Parse BLAST XML results and classify sequences into different categories."""
@@ -172,11 +227,12 @@ def parse_blast_results(args):
             blast_records = NCBIXML.parse(result_handle)
             for blast_record in blast_records:
                 query_id = extract_query_id(blast_record.query)
-                if query_id not in fasta_sequences:
+                fasta_seq = fasta_sequences.get(query_id)  # Avoid repeated dictionary lookups
+                if fasta_seq is None:
                     continue
 
-                hits_info, self_hit = analyze_blast_hits(blast_record, query_id)
-                classification, reason = classify_sequence(hits_info, self_hit)
+                hits_info = analyze_blast_hits(blast_record, query_id)
+                classification, reason = classify_sequence(hits_info)
                 
                 if classification == "non_chimeric":
                     non_chimeric_sequences.add(query_id)
@@ -191,45 +247,41 @@ def parse_blast_results(args):
                 for i, hit in enumerate(hits_info, 1):
                     sequence_details.append([
                         query_id, 
-                        hit["coverage"], 
-                        hit["identity"], 
+                        f"{hit['coverage']:.2f}", 
+                        f"{hit['identity']:.2f}", 
                         classification,
                         f"Hit {i}",
-                        "Same sample" if hit["is_same_sample"] else "Database"
-                    ])
-                
-                # Add self-hit information if available
-                if self_hit:
-                    sequence_details.append([
-                        query_id,
-                        self_hit["coverage"],
-                        self_hit["identity"],
-                        "Self-hit",
-                        "Self-hit",
-                        "Same sample"
+                        "Same sample" if hit["is_same_sample"] else "Database",
+                        hit["taxonomy"]
                     ])
 
                 # Periodically write sequence details to prevent memory overflow
-                if len(sequence_details) >= 1000:
+                if len(sequence_details) >= 200000:
                     write_sequence_details(sequence_details, temp_2_dir, fasta_file)
                     sequence_details.clear()
 
-        # Write any remaining sequence details
-        if sequence_details:
-            write_sequence_details(sequence_details, temp_2_dir, fasta_file)
-            sequence_details.clear()
-
-        # Write sequences to output files only if they are non-empty
-        base_filename = os.path.basename(fasta_file).replace(".chimeras.fasta", "")
-        write_sequences_to_file(non_chimeric_sequences, fasta_sequences, os.path.join(temp_dir, f"{base_filename}_non_chimeric.fasta"))
-        write_sequences_to_file(borderline_sequences, fasta_sequences, os.path.join(temp_dir, f"{base_filename}_borderline.fasta"))
-        write_sequences_to_file(chimeric_sequences, fasta_sequences, os.path.join(temp_dir, f"{base_filename}_chimeric.fasta"))
-    
-        logging.info(f"Completed processing for {xml_file}")
-        return non_chimeric_sequences, chimeric_sequences, borderline_sequences
     except Exception as e:
         logging.error(f"Error processing {xml_file}: {e}")
         return set(), set(), set()
+
+    # Write any remaining sequence details
+    if sequence_details:
+        write_sequence_details(sequence_details, temp_2_dir, fasta_file)
+        sequence_details.clear()
+
+    # Write sequences to output files for non-chimeric and borderline only
+    base_filename = os.path.basename(fasta_file).replace(".chimeras.fasta", "")
+    if non_chimeric_sequences:
+        write_sequences_to_file(non_chimeric_sequences, fasta_sequences, os.path.join(temp_dir, f"{base_filename}_non_chimeric.fasta"))
+    if borderline_sequences:
+        write_sequences_to_file(borderline_sequences, fasta_sequences, os.path.join(temp_dir, f"{base_filename}_borderline.fasta"))
+    
+    # Chimeric sequences stay in the temp folder
+    if chimeric_sequences:
+        write_sequences_to_file(chimeric_sequences, fasta_sequences, os.path.join(temp_2_dir, f"{base_filename}_chimeric.fasta"))
+
+    logging.info(f"Completed processing for {xml_file}")
+    return non_chimeric_sequences, chimeric_sequences, borderline_sequences
 
 def write_sequences_to_file(seq_ids, fasta_sequences, output_file):
     """Write sequences to a FASTA file only if seq_ids is not empty."""
@@ -238,7 +290,7 @@ def write_sequences_to_file(seq_ids, fasta_sequences, output_file):
         return
     
     try:
-        with open(output_file, 'w') as out_file:
+        with open(output_file, 'w', buffering=8192) as out_file:  # Buffered I/O
             for seq_id in sorted(seq_ids):
                 out_file.write(f">{seq_id}\n{fasta_sequences[seq_id]}\n")
         logging.info(f"Wrote {len(seq_ids)} sequences to {output_file}")
@@ -255,22 +307,22 @@ def write_sequence_details(details, temp_2_dir, fasta_file):
         base_filename = os.path.basename(fasta_file).replace(".chimeras.fasta", "")
         csv_file_path = os.path.join(temp_2_dir, f"{base_filename}_sequence_details.csv")
         file_exists = os.path.isfile(csv_file_path)
-        with open(csv_file_path, 'a', newline='') as csvfile:
+        with open(csv_file_path, 'a', newline='', buffering=8192) as csvfile:  # Buffered I/O
             csvwriter = csv.writer(csvfile)
             if not file_exists:
-                csvwriter.writerow(["Sequence ID", "Query Coverage (%)", "Identity Percentage (%)", "Classification", "Hit Type", "Hit Origin"])
+                csvwriter.writerow(["Sequence ID", "Query Coverage (%)", "Identity Percentage (%)", "Classification", "Hit Type", "Hit Origin", "Taxonomy"])
             csvwriter.writerows(details)
         logging.debug(f"Wrote {len(details)} sequence details to {csv_file_path}")
     except Exception as e:
         logging.error(f"Error writing sequence details to {csv_file_path}: {e}")
 
-def generate_report(all_non_chimeric_sequences, all_absolute_chimeras, all_borderline_chimeras, file_results, output_dir):
+def generate_report(all_non_chimeric_sequences, all_chimeric_sequences, all_borderline_chimeras, file_results, output_dir):
     """Generate a detailed report summarizing the results, sorted by file name."""
     try:
         report = {
             "Non-Chimeric Sequences": len(all_non_chimeric_sequences),
-            "Absolute Chimeras": len(all_absolute_chimeras),
-            "Borderline Chimeras": len(all_borderline_chimeras)
+            "Chimeric Sequences": len(all_chimeric_sequences),
+            "Borderline Sequences": len(all_borderline_chimeras)
         }
 
         total_sequences = sum(report.values())
@@ -307,15 +359,13 @@ def process_all_xml_files(directory, temp_dir, temp_2_dir, output_dir, input_dir
     """Process all BLAST XML files and generate final outputs."""
     # Clean up existing directories if they exist
     for dir_path in [temp_dir, temp_2_dir, output_dir]:
-        if os.path.exists(dir_path):
-            shutil.rmtree(dir_path)
-        os.makedirs(dir_path, exist_ok=True)
-
+        clean_directory(dir_path)
+    
     args_list = []
     file_results = defaultdict(lambda: defaultdict(int))
     
     all_non_chimeric_sequences = set()
-    all_absolute_chimeras = set()
+    all_chimeric_sequences = set()
     all_borderline_chimeras = set()
 
     start_time = time.time()
@@ -331,47 +381,46 @@ def process_all_xml_files(directory, temp_dir, temp_2_dir, output_dir, input_dir
             else:
                 logging.warning(f"FASTA file for {xml_file} not found. Skipping.")
 
+    if not args_list:
+        logging.error("No valid XML and FASTA file pairs found. Exiting.")
+        return
+
     logging.info(f"Using {NUM_PROCESSES} processes for multiprocessing.")
     
     with multiprocessing.Pool(processes=NUM_PROCESSES) as pool:
-        results = pool.map(parse_blast_results, args_list)
+        results = pool.map(parse_blast_results, args_list, chunksize=len(args_list)//NUM_PROCESSES)
 
     # Merge all results
     for i, result in enumerate(results):
-        non_chimeric_sequences, absolute_chimeras, borderline_chimeras = result
+        non_chimeric_sequences, chimeric_sequences, borderline_sequences = result
         all_non_chimeric_sequences.update(non_chimeric_sequences)
-        all_absolute_chimeras.update(absolute_chimeras)
-        all_borderline_chimeras.update(borderline_chimeras)
+        all_chimeric_sequences.update(chimeric_sequences)
+        all_borderline_chimeras.update(borderline_sequences)
         
         xml_file = args_list[i][0]
         file_results[xml_file] = {
             "Non-Chimeric Sequences": len(non_chimeric_sequences),
-            "Absolute Chimeras": len(absolute_chimeras),
-            "Borderline Chimeras": len(borderline_chimeras)
+            "Chimeric Sequences": len(chimeric_sequences),
+            "Borderline Sequences": len(borderline_sequences)
         }
 
-    # Combine non-chimeric and borderline sequences into final output (skip chimeric)
+    # Combine non-chimeric, chimeric, and borderline sequences into final output
     for filename in os.listdir(input_dir):
         if filename.endswith(".chimeras.fasta"):
             base_filename = os.path.basename(filename).replace(".chimeras.fasta", "")
             non_chimeric_file = os.path.join(temp_dir, f"{base_filename}_non_chimeric.fasta")
             borderline_file = os.path.join(temp_dir, f"{base_filename}_borderline.fasta")
             
-            # Copy non-chimeric sequences if the file exists
+            # Copy non-chimeric and borderline sequences if the files exist
             if os.path.exists(non_chimeric_file):
                 shutil.copy(non_chimeric_file, os.path.join(output_dir, f"{base_filename}_non_chimeric.fasta"))
                 logging.info(f"Copied {non_chimeric_file} to output directory.")
-            else:
-                logging.info(f"No non-chimeric sequences for {base_filename}. Skipping file copy.")
             
-            # Copy borderline sequences if the file exists
             if os.path.exists(borderline_file):
                 shutil.copy(borderline_file, os.path.join(output_dir, f"{base_filename}_borderline.fasta"))
                 logging.info(f"Copied {borderline_file} to output directory.")
-            else:
-                logging.info(f"No borderline sequences for {base_filename}. Skipping file copy.")
-
-    generate_report(all_non_chimeric_sequences, all_absolute_chimeras, all_borderline_chimeras, file_results, output_dir)
+            
+    generate_report(all_non_chimeric_sequences, all_chimeric_sequences, all_borderline_chimeras, file_results, output_dir)
 
     log_system_usage()
 
@@ -381,14 +430,30 @@ def process_all_xml_files(directory, temp_dir, temp_2_dir, output_dir, input_dir
 
 
 if __name__ == "__main__":
-    input_dir = "./input"      # Directory containing FASTA files
-    directory = "."            # Directory containing XML files
+    # Define directories
+    input_dir = "./input"          # Directory containing FASTA files
+    directory = "."                # Directory containing XML files
     temp_dir = "./temp"
     temp_2_dir = "./temp_2"
     output_dir = "./rescued_reads"
 
+    # Ensure output directories exist
+    for dir_path in [input_dir, directory]:
+        if not os.path.exists(dir_path):
+            logging.error(f"Directory does not exist: {dir_path}")
+            exit(1)
+
     try:
         process_all_xml_files(directory, temp_dir, temp_2_dir, output_dir, input_dir)
+
+        # Remove the temp_2 directory after processing
+        if os.path.exists(temp_2_dir):
+            try:
+                shutil.rmtree(temp_2_dir)
+                logging.info(f"Removed {temp_2_dir} directory.")
+            except Exception as e:
+                logging.error(f"Failed to remove {temp_2_dir}. Reason: {e}")
+
         print("Processing complete. Check the rescued_reads folder for final results.")
     except Exception as e:
         logging.error(f"An error occurred during processing: {e}")
