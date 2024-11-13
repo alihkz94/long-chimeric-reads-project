@@ -36,7 +36,7 @@ for chimera_file in $DIR/*.fasta; do
            -evalue 0.001 \
            -strand both \
            -max_target_seqs 10 \
-           -max_hsps 1 \
+           -max_hsps 9 \
            -out "$DIR/${BASENAME}_blast_results.xml"
     
     echo "Completed BLAST analysis for ${BASENAME}"
@@ -88,7 +88,7 @@ blastn -query "$CURRENT_FILE" \
        -evalue 0.001 \
        -strand both \
        -max_target_seqs 10 \
-       -max_hsps 1 \
+       -max_hsps 9 \
        -out "$DIR/${BASENAME}_blast_results.xml"
 
 echo "Completed BLAST analysis for ${BASENAME}"
