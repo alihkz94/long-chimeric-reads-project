@@ -53,6 +53,7 @@ Date: 2024-10-23
 """
 
 #load libraries
+#load libraries
 import os
 import shutil
 import multiprocessing
@@ -121,24 +122,32 @@ def analyze_blast_hits(blast_record, query_id):
     if not blast_record.alignments:
         return hits_info
         
-    # Process first hit
+    # Process first hit and check if it's a self-hit
     first_alignment = blast_record.alignments[0]
     first_hit_id = extract_query_id(first_alignment.hit_def)
     
-    # If first hit is not self-hit, check for multiple HSPs
-    if first_hit_id != query_id:
-        if len(first_alignment.hsps) > 1:
-            # If multiple HSPs found in first non-self hit, mark as chimeric
-            return [{
-                "hit_id": first_hit_id,
-                "identity": 100,  # Placeholder values since we're marking as chimeric
-                "coverage": 100,
-                "is_same_sample": False,
-                "taxonomy": extract_taxonomy(first_alignment.hit_def),
-                "force_chimeric": True  # New flag to force chimeric classification
-            }]
+    # Determine which hit to check for multiple HSPs
+    hit_to_check = first_alignment
+    if first_hit_id == query_id and len(blast_record.alignments) > 1:
+        # If first hit is self-hit and there's a second hit, use that instead
+        hit_to_check = blast_record.alignments[1]
+        hit_id = extract_query_id(hit_to_check.hit_def)
+    else:
+        hit_id = first_hit_id
+
+    # Check for multiple HSPs in the selected hit
+    if hit_id != query_id and len(hit_to_check.hsps) > 1:
+        return [{
+            "hit_id": hit_id,
+            "identity": 100,  # Placeholder values
+            "coverage": 100,
+            "is_same_sample": False,
+            "taxonomy": extract_taxonomy(hit_to_check.hit_def),
+            "force_chimeric": True,
+            "multiple_hsps": True
+        }]
     
-    # Process all hits
+    # If no multiple HSPs, process all hits normally
     for alignment in blast_record.alignments:
         if not alignment.hsps:
             continue
@@ -165,7 +174,8 @@ def analyze_blast_hits(blast_record, query_id):
             "coverage": coverage_percentage,
             "is_same_sample": is_same_sample,
             "taxonomy": taxonomy,
-            "force_chimeric": False
+            "force_chimeric": False,
+            "multiple_hsps": False
         })
 
     return hits_info
@@ -231,31 +241,58 @@ def write_sequences_to_file(seq_ids, fasta_sequences, output_file):
         return
     
     try:
-        with open(output_file, 'w', buffering=8192) as out_file:  # Buffered I/O
+        with open(output_file, 'w', buffering=8192) as out_file:
             for seq_id in sorted(seq_ids):
-                out_file.write(f">{seq_id}\n{fasta_sequences[seq_id]}\n")
+                if seq_id in fasta_sequences:  # Added safety check
+                    out_file.write(f">{seq_id}\n{fasta_sequences[seq_id]}\n")
         logging.info(f"Wrote {len(seq_ids)} sequences to {output_file}")
     except Exception as e:
         logging.error(f"Error writing to {output_file}: {e}")
 
 def write_sequence_details(details, temp_2_dir, fasta_file):
-    """Write sequence details to a CSV file in batches."""
+    """
+    Write sequence details to a CSV file.
+    
+    Args:
+        details (list): List of sequence detail rows
+        temp_2_dir (str): Directory path for output
+        fasta_file (str): Original FASTA file name used to generate output filename
+    """
     if not details:
         logging.debug("No sequence details to write. Skipping.")
         return
     
     try:
+        # Generate output filename based on input FASTA file
         base_filename = os.path.basename(fasta_file).replace(".chimeras.fasta", "")
         csv_file_path = os.path.join(temp_2_dir, f"{base_filename}_sequence_details.csv")
+        
+        # Check if file exists to determine if we need to write headers
         file_exists = os.path.isfile(csv_file_path)
-        with open(csv_file_path, 'a', newline='', buffering=8192) as csvfile:  # Buffered I/O
+        
+        # Open file in append mode with buffering for better performance
+        with open(csv_file_path, 'a', newline='', buffering=8192) as csvfile:
             csvwriter = csv.writer(csvfile)
+            
+            # Write headers if file is new
             if not file_exists:
-                csvwriter.writerow(["Sequence ID", "Query Coverage (%)", "Identity Percentage (%)", "Classification", "Hit Type", "Hit Origin", "Taxonomy"])
+                csvwriter.writerow([
+                    "Sequence ID",
+                    "Query Coverage (%)",
+                    "Identity Percentage (%)",
+                    "Classification",
+                    "Hit Type",
+                    "Hit Origin",
+                    "Taxonomy"
+                ])
+            
+            # Write all sequence details
             csvwriter.writerows(details)
+            
         logging.debug(f"Wrote {len(details)} sequence details to {csv_file_path}")
+        
     except Exception as e:
-        logging.error(f"Error writing sequence details to {csv_file_path}: {e}")
+        logging.error(f"Error writing sequence details to CSV: {e}")
 
 def clean_directory(dir_path):
     """Remove all contents within a directory without deleting the directory itself."""
@@ -266,9 +303,9 @@ def clean_directory(dir_path):
         file_path = os.path.join(dir_path, filename)
         try:
             if os.path.isfile(file_path) or os.path.islink(file_path):
-                os.unlink(file_path)  # Remove file or symbolic link
+                os.unlink(file_path)
             elif os.path.isdir(file_path):
-                shutil.rmtree(file_path)  # Remove directory and its contents
+                shutil.rmtree(file_path)
         except Exception as e:
             logging.error(f'Failed to delete {file_path}. Reason: {e}')
 
@@ -281,7 +318,7 @@ def parse_blast_results(args):
         fasta_sequences = load_fasta_sequences(fasta_file)
     except FileNotFoundError as e:
         logging.error(e)
-        return set(), set(), set(), set()  # Added new set for multiple alignments
+        return set(), set(), set(), set()
     except Exception as e:
         logging.error(f"Error loading FASTA file {fasta_file}: {e}")
         return set(), set(), set(), set()
@@ -289,7 +326,7 @@ def parse_blast_results(args):
     non_chimeric_sequences = set()
     chimeric_sequences = set()
     borderline_sequences = set()
-    multiple_alignment_sequences = set()  # New set for multiple alignment sequences
+    multiple_alignment_sequences = set()
 
     sequence_details = []
 
@@ -305,12 +342,12 @@ def parse_blast_results(args):
                 hits_info = analyze_blast_hits(blast_record, query_id)
                 
                 # Check if this is a multiple alignment case
-                is_multiple_alignment = any(hit.get("force_chimeric", False) for hit in hits_info)
+                is_multiple_alignment = any(hit.get("multiple_hsps", False) for hit in hits_info)
                 
                 if is_multiple_alignment:
                     multiple_alignment_sequences.add(query_id)
-                    classification = "multiple_alignment"
                 else:
+                    # Only classify if not multiple alignment
                     classification, reason = classify_sequence(hits_info)
                     if classification == "non_chimeric":
                         non_chimeric_sequences.add(query_id)
@@ -319,10 +356,9 @@ def parse_blast_results(args):
                     else:
                         borderline_sequences.add(query_id)
                 
-                logging.debug(f"{query_id} classified as {classification}")
-                
                 # Add details for all hits
                 for i, hit in enumerate(hits_info, 1):
+                    classification = "multiple_alignment" if is_multiple_alignment else classification
                     sequence_details.append([
                         query_id, 
                         f"{hit['coverage']:.2f}", 
@@ -333,23 +369,19 @@ def parse_blast_results(args):
                         hit["taxonomy"]
                     ])
 
-                # Periodically write sequence details
-                if len(sequence_details) >= 300000:
-                    write_sequence_details(sequence_details, temp_2_dir, fasta_file)
-                    sequence_details.clear()
-
     except Exception as e:
         logging.error(f"Error processing {xml_file}: {e}")
         return set(), set(), set(), set()
 
-    # Write any remaining sequence details
-    if sequence_details:
-        write_sequence_details(sequence_details, temp_2_dir, fasta_file)
-        sequence_details.clear()
-
     # Write sequences to respective files
     base_filename = os.path.basename(fasta_file).replace(".chimeras.fasta", "")
     
+    # Write multiple alignment sequences to temp_2_dir
+    if multiple_alignment_sequences:
+        write_sequences_to_file(multiple_alignment_sequences, fasta_sequences, 
+                              os.path.join(temp_2_dir, f"{base_filename}_multiple_alignments.fasta"))
+    
+    # Write other categories
     if non_chimeric_sequences:
         write_sequences_to_file(non_chimeric_sequences, fasta_sequences, 
                               os.path.join(temp_dir, f"{base_filename}_non_chimeric.fasta"))
@@ -359,9 +391,10 @@ def parse_blast_results(args):
     if chimeric_sequences:
         write_sequences_to_file(chimeric_sequences, fasta_sequences, 
                               os.path.join(temp_2_dir, f"{base_filename}_chimeric.fasta"))
-    if multiple_alignment_sequences:  # New file for multiple alignment sequences
-        write_sequences_to_file(multiple_alignment_sequences, fasta_sequences, 
-                              os.path.join(temp_2_dir, f"{base_filename}_multiple_alignments.fasta"))
+
+    # Write sequence details to temp_2_dir
+    if sequence_details:
+        write_sequence_details(sequence_details, temp_2_dir, fasta_file)
 
     logging.info(f"Completed processing for {xml_file}")
     return non_chimeric_sequences, chimeric_sequences, borderline_sequences, multiple_alignment_sequences
@@ -375,7 +408,7 @@ def generate_report(all_non_chimeric_sequences, all_chimeric_sequences,
             "Non-Chimeric Sequences": len(all_non_chimeric_sequences),
             "Chimeric Sequences": len(all_chimeric_sequences),
             "Borderline Sequences": len(all_borderline_chimeras),
-            "Multiple Alignment Sequences": len(all_multiple_alignments)  # Added to report
+            "Multiple Alignment Sequences": len(all_multiple_alignments)
         }
 
         total_sequences = sum(report.values())
@@ -420,7 +453,7 @@ def process_all_xml_files(directory, temp_dir, temp_2_dir, output_dir, input_dir
     all_non_chimeric_sequences = set()
     all_chimeric_sequences = set()
     all_borderline_chimeras = set()
-    all_multiple_alignments = set()  # New set for tracking all multiple alignments
+    all_multiple_alignments = set()
 
     start_time = time.time()
     log_system_usage()
@@ -447,45 +480,53 @@ def process_all_xml_files(directory, temp_dir, temp_2_dir, output_dir, input_dir
     # Merge all results
     for i, result in enumerate(results):
         non_chimeric_sequences, chimeric_sequences, borderline_sequences, multiple_alignments = result
+        
+        # Add sequences to their respective sets
         all_non_chimeric_sequences.update(non_chimeric_sequences)
         all_chimeric_sequences.update(chimeric_sequences)
         all_borderline_chimeras.update(borderline_sequences)
         all_multiple_alignments.update(multiple_alignments)
         
         xml_file = args_list[i][0]
+        # Store results for reporting, keeping multiple alignments separate
         file_results[xml_file] = {
             "Non-Chimeric Sequences": len(non_chimeric_sequences),
             "Chimeric Sequences": len(chimeric_sequences),
             "Borderline Sequences": len(borderline_sequences),
-            "Multiple Alignment Sequences": len(multiple_alignments)  # Added to results
+            "Multiple Alignment Sequences": len(multiple_alignments)
         }
-    # Combine non-chimeric, chimeric, and borderline sequences into final output
+
+    # Copy only non-chimeric and borderline sequences to rescued_reads
     for filename in os.listdir(input_dir):
         if filename.endswith(".chimeras.fasta"):
             base_filename = os.path.basename(filename).replace(".chimeras.fasta", "")
             non_chimeric_file = os.path.join(temp_dir, f"{base_filename}_non_chimeric.fasta")
             borderline_file = os.path.join(temp_dir, f"{base_filename}_borderline.fasta")
             
-            # Copy non-chimeric and borderline sequences if the files exist
+            # Copy only non-chimeric and borderline to rescued_reads
             if os.path.exists(non_chimeric_file):
                 shutil.copy(non_chimeric_file, os.path.join(output_dir, f"{base_filename}_non_chimeric.fasta"))
-                logging.info(f"Copied {non_chimeric_file} to output directory.")
-            
             if os.path.exists(borderline_file):
                 shutil.copy(borderline_file, os.path.join(output_dir, f"{base_filename}_borderline.fasta"))
-                logging.info(f"Copied {borderline_file} to output directory.")
 
-    # Update the report generation to include multiple alignments
+    # Generate report
     generate_report(all_non_chimeric_sequences, all_chimeric_sequences, 
                    all_borderline_chimeras, all_multiple_alignments, 
                    file_results, output_dir)
 
     log_system_usage()
 
+    # Only remove temp_dir, keep temp_2_dir
+    if os.path.exists(temp_dir):
+        try:
+            shutil.rmtree(temp_dir)
+            logging.info(f"Removed {temp_dir} directory.")
+        except Exception as e:
+            logging.error(f"Failed to remove {temp_dir}. Reason: {e}")
+
     end_time = time.time()
     elapsed_time = end_time - start_time
     logging.info(f"Total time taken: {elapsed_time:.2f} seconds")
-
 
 if __name__ == "__main__":
     # Define directories
@@ -504,7 +545,7 @@ if __name__ == "__main__":
     try:
         process_all_xml_files(directory, temp_dir, temp_2_dir, output_dir, input_dir)
 
-        # Remove the temp directory after processing
+        # Remove only the temp directory after processing
         if os.path.exists(temp_dir):
             try:
                 shutil.rmtree(temp_dir)
