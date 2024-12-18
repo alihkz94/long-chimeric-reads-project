@@ -14,4 +14,4 @@ This repository contains the data and part of the analysis stack for the aboveme
  
 
 The workflow we followed for the real dataset was like this:
-![workflow for real dataset](workflow.jpg)
+![workflow for real dataset](workflow.png)
