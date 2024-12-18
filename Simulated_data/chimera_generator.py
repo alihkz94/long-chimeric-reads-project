@@ -23,7 +23,7 @@ directory, and detailed information about each chimera is logged for further ana
 2. **Run the Script:**
    ```bash
    python generate_chimeras.py
-```
+   ```
 """   
 #load libraries
 import os
