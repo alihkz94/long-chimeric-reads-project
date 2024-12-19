@@ -1,4 +1,4 @@
-# Data and scripts for "Overcoming chimeric sequence challenges in long-read amplicon sequencing" (Hakimzadeh et al. 2025)
+# "Overcoming chimeric sequence challenges in long-read amplicon sequencing" (Hakimzadeh et al. 2025)
 
 ### Structure
 This repository contains the data and part of the analysis stack for the abovementioned paper. It is structured as follows:
