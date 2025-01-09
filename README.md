@@ -1,4 +1,4 @@
-# "Overcoming chimeric sequence challenges in long-read amplicon sequencing" (Hakimzadeh et al. 2025)
+# "Evaluation of chimera detection algorithms on long-read amplicons" (Hakimzadeh et al. 2025)
 
 ### Structure
 This repository contains the data and part of the analysis stack for the abovementioned paper. It is structured as follows:
