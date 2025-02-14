@@ -25,134 +25,236 @@ directory, and detailed information about each chimera is logged for further ana
    python generate_chimeras.py
    ```
 """   
-#load libraries
 import os
 import random
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
+from collections import defaultdict
+import numpy as np
 
-def generate_chimeras(chimera_id_prefix="chimera"):
-
-    # Set up input and output directories
-    input_directory = os.getcwd()
-    output_directory = os.path.join(input_directory, "chimeric_reads")
-    chimera_info_file = os.path.join(output_directory, "chimera_info.tsv")
-
-    # Create output directory if needed
-    if not os.path.exists(output_directory):
-        os.makedirs(output_directory)
-
-    # Get list of input FASTA files
-    input_files = [file for file in os.listdir(input_directory) if file.endswith(".fasta")]
-
-    # Track short chimeras to avoid too many
-    short_chimeras_count = 0
-
-    for selected_input_file in input_files:
-
-        # Parse all input files
-        records = []
-        for input_file in input_files:
-            records.extend([(rec, input_file) for rec in SeqIO.parse(os.path.join(input_directory, input_file), "fasta")])
-
-        # Parse seqs from selected "main" file
-        main_records = [(rec, selected_input_file) for rec in SeqIO.parse(os.path.join(input_directory, selected_input_file), "fasta")]
-        mixed_records = records
-
-        # Determine number of chimeras to generate
-        total_reads = len(main_records)
-        num_chimeras = int(total_reads * random.uniform(0.01, 0.03))
-
-        chimeras = []
-        original_ratios = calculate_abundance_ratio(main_records)
-
-        with open(chimera_info_file, "a") as chimera_info_handle:
+class ChimeraGenerator:
+    def __init__(self, chimera_id_prefix="chimera"):
+        self.chimera_id_prefix = chimera_id_prefix
+        # Dataset-specific parameters
+        self.min_seq_len = 260
+        self.max_seq_len = 1393
+        self.avg_seq_len = 547.4
+        self.expected_seqs = 28254
         
-            # Write header if new file
-            if os.path.getsize(chimera_info_file) == 0:
-                chimera_info_handle.write("chimera_id\tseq1_id\tseq1_file\tseq2_id\tseq2_file\tbreakpoints\treversed\tratio\tlength\n")
+        # ITS region boundaries adjusted for average sequence length
+        self.its_regions = {
+            'ITS1': (0, 0.35),    # Slightly expanded ITS1 region
+            '5.8S': (0.35, 0.48), # Adjusted 5.8S region
+            'ITS2': (0.48, 1.0)   # Adjusted ITS2 region
+        }
+        
+        # PacBio-specific parameters
+        self.chimera_rate_bounds = (0.08, 0.12)  # 8-12% chimera rate for PacBio
+        self.length_ratio_bounds = (0.6, 1.8)    # More stringent length ratio constraints
+        
+    def validate_chimera_length(self, chimera_seq):
+        """
+        Validate chimera length against dataset parameters
+        """
+        length = len(chimera_seq)
+        # Allow slightly shorter/longer sequences than original bounds
+        min_allowed = max(self.min_seq_len * 0.9, 250)  # Never below 250
+        max_allowed = min(self.max_seq_len * 1.1, 1500) # Never above 1500
+        
+        return min_allowed <= length <= max_allowed
 
-            # Generate chimeras
-            i = 0
-            last_reverse_status = False
-            while i < num_chimeras:
+    def get_weighted_breakpoint(self, seq_length):
+        """
+        Generate breakpoints with dataset-specific weighting
+        """
+        weights = []
+        its1_peak = int(seq_length * 0.25)  # Peak probability in ITS1
+        its2_peak = int(seq_length * 0.65)  # Peak probability in ITS2
+        
+        for i in range(seq_length):
+            pos_ratio = i / seq_length
+            
+            # Create gaussian-like distributions around typical breakpoints
+            its1_weight = np.exp(-0.5 * ((i - its1_peak) / (seq_length * 0.1)) ** 2)
+            its2_weight = np.exp(-0.5 * ((i - its2_peak) / (seq_length * 0.1)) ** 2)
+            
+            if self.its_regions['ITS1'][0] <= pos_ratio <= self.its_regions['ITS1'][1]:
+                weights.append(its1_weight)
+            elif self.its_regions['ITS2'][0] <= pos_ratio <= self.its_regions['ITS2'][1]:
+                weights.append(its2_weight)
+            elif self.its_regions['5.8S'][0] <= pos_ratio <= self.its_regions['5.8S'][1]:
+                weights.append(0.2)  # Low probability in 5.8S
+            else:
+                weights.append(0.3)  # Moderate probability in other regions
+                
+        weights = np.array(weights) / sum(weights)
+        return np.random.choice(range(seq_length), p=weights)
 
-                # Select parent seqs
-                if i < int(num_chimeras * 0.1):
-                    seq1, seq2 = random.sample(main_records, 2)  
-                else:
-                    seq1, seq2 = random.sample(mixed_records, 2)
+    def generate_chimeras(self):
+        input_directory = os.getcwd()
+        output_directory = os.path.join(input_directory, "chimeric_reads")
+        chimera_info_file = os.path.join(output_directory, "chimera_info.tsv")
+        
+        if not os.path.exists(output_directory):
+            os.makedirs(output_directory)
 
-                # Get seq records
-                seq1_rec, seq1_file = seq1
-                seq2_rec, seq2_file = seq2
+        input_files = [f for f in os.listdir(input_directory) if f.endswith(".fasta")]
+        chimera_stats = defaultdict(int)
+        
+        for selected_input_file in input_files:
+            # Load and validate input sequences
+            records = []
+            for input_file in input_files:
+                file_records = list(SeqIO.parse(os.path.join(input_directory, input_file), "fasta"))
+                # Filter sequences based on length constraints
+                valid_records = [(rec, input_file) for rec in file_records 
+                               if self.min_seq_len <= len(rec.seq) <= self.max_seq_len]
+                records.extend(valid_records)
 
-                # Skip if no original ratio data
-                if seq1_rec.id not in original_ratios:
-                    continue
+            main_records = [(rec, selected_input_file) for rec in 
+                           SeqIO.parse(os.path.join(input_directory, selected_input_file), "fasta")
+                           if self.min_seq_len <= len(rec.seq) <= self.max_seq_len]
+            
+            mixed_records = records
+            total_reads = len(main_records)
+            
+            # Calculate chimera numbers based on PacBio-specific rates
+            chimera_rate = random.uniform(*self.chimera_rate_bounds)
+            num_chimeras = int(total_reads * chimera_rate)
+            
+            chimeras = []
+            original_ratios = self._calculate_abundance_ratio(main_records)
 
-                # Generate breakpoint
-                breakpoint = random.randint(1, len(seq1_rec) - 1)
-                chimera_seq = seq1_rec.seq[:breakpoint] + seq2_rec.seq[breakpoint:]
+            with open(chimera_info_file, "a") as chimera_info_handle:
+                if os.path.getsize(chimera_info_file) == 0:
+                    chimera_info_handle.write("chimera_id\tseq1_id\tseq1_file\tseq2_id\tseq2_file\t"
+                                           "breakpoint\tbreakpoint_region\treversed\tratio\tlength\t"
+                                           "parent1_length\tparent2_length\tits_region_break\n")
 
-                # Check if chimera components are too short
-                if len(seq1_rec.seq[:breakpoint]) < 50 or len(seq2_rec.seq[breakpoint:]) < 50:
-                    short_chimeras_count += 1
-                    if short_chimeras_count / num_chimeras > 0.1:
+                i = 0
+                attempts = 0
+                max_attempts = num_chimeras * 3  # Limit attempts to avoid infinite loops
+                
+                while i < num_chimeras and attempts < max_attempts:
+                    attempts += 1
+                    
+                    # Select parent sequences with length-based weighting
+                    if i < int(num_chimeras * 0.15):
+                        seq1, seq2 = random.sample(main_records, 2)
+                    else:
+                        seq1, seq2 = random.sample(mixed_records, 2)
+
+                    seq1_rec, seq1_file = seq1
+                    seq2_rec, seq2_file = seq2
+
+                    if seq1_rec.id not in original_ratios:
                         continue
-                else:
-                    short_chimeras_count = max(0, short_chimeras_count - 1) 
 
-                # Reverse complement some chimeras
-                if (i % 25 == 0) and (not last_reverse_status):
-                    chimera_seq = chimera_seq.reverse_complement()
-                    last_reverse_status = True
-                else:
-                    last_reverse_status = False
+                    # Generate biased breakpoint
+                    breakpoint = self.get_weighted_breakpoint(len(seq1_rec))
+                    pos_ratio = breakpoint / len(seq1_rec)
+                    
+                    # Determine breakpoint region
+                    breakpoint_region = next(region for region, (start, end) in 
+                                          self.its_regions.items() if start <= pos_ratio <= end)
 
-                # Skip if chimera size is too skewed
-                if len(seq1_rec) < 1.5 * len(chimera_seq) or len(seq1_rec) > 10 * len(chimera_seq):
-                    continue
+                    # Create chimeric sequence
+                    chimera_seq = seq1_rec.seq[:breakpoint] + seq2_rec.seq[breakpoint:]
 
-                # Generate chimera ID and record
-                reversed_status = "yes" if last_reverse_status else "no"
-                chimera_id = f"{chimera_id_prefix}_{seq1_rec.id}_and_{seq2_rec.id}_at_{breakpoint}_reversed_{reversed_status}_{i}"
-                chimera_record = SeqRecord(Seq(str(chimera_seq)), id=chimera_id, description="")
-                chimeras.append((chimera_record, seq1_file))
+                    # Validate chimera
+                    if not self.validate_chimera_length(chimera_seq):
+                        chimera_stats['length_rejected'] += 1
+                        continue
 
-                # Calculate abundance
-                min_ratio = 0.1
-                max_ratio = original_ratios[seq1_rec.id] / 1.5
-                ratio = random.uniform(min_ratio, min(max_ratio, 10))
+                    # Length ratio validation
+                    parent_ratio = len(seq1_rec) / len(seq2_rec)
+                    if not (self.length_ratio_bounds[0] <= parent_ratio <= self.length_ratio_bounds[1]):
+                        chimera_stats['ratio_rejected'] += 1
+                        continue
 
-                # Log chimera info
-                chimera_info_handle.write(f"{chimera_id}\t{seq1_rec.id}\t{seq1_file}\t{seq2_rec.id}\t{seq2_file}\t{breakpoint}\t{reversed_status}\t{ratio}\t{len(chimera_seq)}\n")
+                    # PacBio-specific reverse complement probability
+                    should_reverse = random.random() < 0.08  # 8% chance based on PacBio characteristics
+                    if should_reverse:
+                        chimera_seq = chimera_seq.reverse_complement()
 
-                i += 1
+                    # Generate chimera record
+                    reversed_status = "yes" if should_reverse else "no"
+                    chimera_id = (f"{self.chimera_id_prefix}_{seq1_rec.id}_and_{seq2_rec.id}_"
+                                f"at_{breakpoint}_{breakpoint_region}_reversed_{reversed_status}_{i}")
+                    
+                    chimera_record = SeqRecord(Seq(str(chimera_seq)), id=chimera_id, description="")
+                    chimeras.append((chimera_record, seq1_file))
 
-        # Write chimeras to output FASTA
-        output_file = os.path.join(output_directory, os.path.basename(selected_input_file))
-        for chimera, _ in chimeras:
-            position = random.randint(0, len(main_records) - 1)
-            main_records.insert(position, (chimera, selected_input_file))
+                    # Calculate abundance with realistic distribution
+                    parent_abundance = original_ratios[seq1_rec.id]
+                    # Log-normal distribution for chimera abundance
+                    ratio = np.random.lognormal(mean=-1.5, sigma=0.5) * parent_abundance
+                    ratio = min(ratio, 0.5 * parent_abundance)  # Cap at 50% of parent abundance
+
+                    # Log chimera information
+                    chimera_info_handle.write(
+                        f"{chimera_id}\t{seq1_rec.id}\t{seq1_file}\t{seq2_rec.id}\t{seq2_file}\t"
+                        f"{breakpoint}\t{breakpoint_region}\t{reversed_status}\t{ratio:.4f}\t"
+                        f"{len(chimera_seq)}\t{len(seq1_rec)}\t{len(seq2_rec)}\t{pos_ratio:.3f}\n"
+                    )
+
+                    i += 1
+                    chimera_stats['accepted'] += 1
+
+            # Write output with chimeras
+            output_file = os.path.join(output_directory, os.path.basename(selected_input_file))
+            self._write_output_with_chimeras(output_file, main_records, chimeras)
+            
+        # Write detailed statistics
+        stats_file = os.path.join(output_directory, "chimera_generation_stats.txt")
+        self._write_statistics(stats_file, chimera_stats)
+
+    def _calculate_abundance_ratio(self, records):
+        """Calculate abundance ratios with log-normal distribution"""
+        abundance_ratios = defaultdict(int)
+        total_reads = len(records)
+
+        for record, _ in records:
+            abundance_ratios[record.id] += 1
+
+        return {seq_id: count/total_reads for seq_id, count in abundance_ratios.items()}
+
+    def _write_output_with_chimeras(self, output_file, main_records, chimeras):
+        """Write output with improved chimera distribution"""
+        # Insert chimeras following a more natural distribution
+        positions = np.random.choice(
+            len(main_records), 
+            size=len(chimeras), 
+            replace=True
+        )
+        
+        for (chimera, _), pos in zip(chimeras, sorted(positions)):
+            main_records.insert(pos, (chimera, os.path.basename(output_file)))
 
         with open(output_file, "w") as output_handle:
-            SeqIO.write([rec for rec, file in main_records], output_handle, "fasta")
+            SeqIO.write([rec for rec, _ in main_records], output_handle, "fasta-2line")
+
+    def _write_statistics(self, stats_file, stats):
+        """Write comprehensive statistics about chimera generation"""
+        with open(stats_file, "w") as f:
+            f.write("Chimera Generation Statistics\n")
+            f.write("===========================\n")
+            f.write(f"Input Dataset Properties:\n")
+            f.write(f"  Total sequences: {self.expected_seqs:,}\n")
+            f.write(f"  Average length: {self.avg_seq_len:.1f}\n")
+            f.write(f"  Length range: {self.min_seq_len}-{self.max_seq_len}\n\n")
             
-# Calculate original abundance ratios
-def calculate_abundance_ratio(records):
+            f.write("Chimera Generation Results:\n")
+            f.write(f"  Total chimeras accepted: {stats['accepted']}\n")
+            f.write(f"  Rejected due to length: {stats['length_rejected']}\n")
+            f.write(f"  Rejected due to invalid ratio: {stats['ratio_rejected']}\n")
+            
+            total_attempted = sum(stats.values())
+            if total_attempted > 0:
+                success_rate = stats['accepted']/total_attempted
+                f.write(f"  Overall success rate: {success_rate:.2%}\n")
 
-    abundance_ratios = {}
-    total_reads = len(records)
-
-    for record, file in records:
-        abundance_ratios[record.id] = abundance_ratios.get(record.id, 0) + 1
-
-    for seq_id, count in abundance_ratios.items():
-        abundance_ratios[seq_id] = count / total_reads
-
-    return abundance_ratios
-
-if __name__ == "__main__":    
-    generate_chimeras()
+if __name__ == "__main__":
+    generator = ChimeraGenerator()
+    generator.generate_chimeras()
