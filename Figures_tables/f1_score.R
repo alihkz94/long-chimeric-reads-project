@@ -4,12 +4,12 @@ library(dplyr)
 
 # Define the data
 data <- data.frame(
-  module = factor(c("uchime_denovo default", "removeBimeraDenovo default", "Chimeras_denovo default",
-                    "uchime_denovo adjusted", "Chimeras_denovo adjusted")),
-  algorithm = c("uchime_denovo", "removeBimeraDenovo", "Chimeras_denovo",
-                "uchime_denovo", "Chimeras_denovo"),
-  F1_score = c(0.91, 0.14, 0.088,
-               0.92, 0.62)
+  module = factor(c("uchime_denovo default", "removeBimeraDenovo default", "chimeras_denovo default",
+                    "uchime_denovo adjusted", "chimeras_denovo adjusted")),
+  algorithm = c("uchime_denovo", "removeBimeraDenovo", "chimeras_denovo",
+                "uchime_denovo", "chimeras_denovo"),
+  F1_score = c(0.87, 0.14, 0.15,
+               0.89, 0.71)
 )
 
 # Sort data by F1_score in descending order
@@ -22,7 +22,7 @@ data$module <- factor(data$module, levels = data$module[order(desc(data$F1_score
 algorithm_palette <- c(
   "uchime_denovo" = "red",
   "removeBimeraDenovo" = "green",
-  "Chimeras_denovo" = "purple"
+  "chimeras_denovo" = "purple"
 )
 
 # Create the plot
