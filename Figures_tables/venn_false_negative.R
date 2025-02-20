@@ -37,7 +37,7 @@ generate_venn_diagram <- function(file1, file2, file3, output_file) {
       `_chimeras_denovo` = seqs2,
       `_DADA2` = seqs3
     ),
-    category.names = c(" UCHIME_denovo", " Chimeras_denovo", " DADA2"),
+    category.names = c(" uchime_denovo", " chimeras_denovo", " removeBimeraDenovo"),
     filename = NULL,
     output = TRUE,
     imagetype = "jpg",
