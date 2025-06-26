@@ -202,3 +202,201 @@ pp <- ggplot(RES, aes(x = isolation_source, y = residual)) +
 ggsave(pp,
   filename = "Jamy__Procrustes_residuals_VsRaw.pdf",
   width = 10, height = 6)
+
+
+
+
+###### OTHER METHODOLOGY (PRESENCE/ABSENCE) #########
+#––– libraries
+library(data.table)
+library(vegan)
+library(plyr)
+library(ggplot2)
+library(openxlsx)
+library(janitor)
+
+#––– 1. Load & clean metadata
+META <- fread("Jamy_metadata.txt")
+setnames(META,
+         old = colnames(META),
+         new = make_clean_names(colnames(META))
+)
+
+#––– 1a. Only keep samples you trust
+valid_samps <- META$run_accession
+
+#––– 2. Discover method directories containing OTU_table.txt
+all_dirs <- list.dirs(path = ".", full.names = TRUE, recursive = FALSE)
+is_method_dir <- sapply(all_dirs, function(d) {
+  file.exists(file.path(d, "OTU_table.txt"))
+})
+method_dirs_full <- all_dirs[is_method_dir]
+method_names <- trimws(basename(method_dirs_full))
+names(method_dirs_full) <- method_names
+
+if (length(method_dirs_full) == 0) {
+  stop("No directories with OTU_table.txt found. Check your directory structure.")
+}
+
+message("Found method directories:")
+print(method_names)
+
+#––– 3. Load OTU tables and drop unwanted samples
+load_otu <- function(name) {
+  dt <- fread(file.path(method_dirs_full[[name]], "OTU_table.txt"))
+  sample_cols <- setdiff(colnames(dt), "OTU")
+  keep_cols   <- intersect(sample_cols, valid_samps)
+  if (length(keep_cols) < length(sample_cols)) {
+    dropped <- setdiff(sample_cols, keep_cols)
+    message("  → dropping ", length(dropped),
+            " samples from ", name, ": ", paste(dropped, collapse = ", "))
+  }
+  dt[, c("OTU", keep_cols), with = FALSE]
+}
+
+TABS_unstd <- llply(method_names, load_otu)
+names(TABS_unstd) <- method_names
+
+#––– 3a. Canonicalize method names: replace spaces with underscores, rename "reference" → "Raw"
+canonical_names <- gsub(" ", "_", method_names)
+canonical_names[canonical_names == "reference"] <- "Raw"
+names(TABS_unstd) <- canonical_names
+
+message("Loaded methods with canonical names:")
+for (i in seq_along(method_names)) {
+  message("  '", method_names[i], "' -> '", canonical_names[i], "'")
+}
+
+#––– 3b. Check that Raw (reference) is present
+if (!"Raw" %in% names(TABS_unstd)) {
+  stop("Raw data not found. Available methods: ", paste(names(TABS_unstd), collapse = ", "))
+}
+
+#––– 4. Skip SRS subsampling; use raw counts directly
+TABS <- TABS_unstd
+
+#––– 5. Compute alpha diversity on raw counts
+raw_mat <- as.matrix(TABS$Raw[, -1, with = FALSE])
+rownames(raw_mat) <- TABS$Raw$OTU
+
+DIV <- data.table(
+  SampleID = colnames(raw_mat),
+  Richness = specnumber(t(raw_mat)),
+  Shannon  = diversity(t(raw_mat))
+)
+META <- merge(
+  META, DIV,
+  by.x = "run_accession", by.y = "SampleID",
+  all.x = TRUE
+)
+
+#––– 6. Ordination helpers (PA + Bray–Curtis)
+get_matrix <- function(tab) {
+  m <- as.matrix(tab[, -1, with = FALSE])
+  rownames(m) <- tab$OTU
+  t(m)
+}
+get_ordination <- function(mat) {
+  mat_pa <- decostand(mat, "pa")     # presence / absence
+  d      <- vegdist(mat_pa, "bray")  # Bray–Curtis on PA
+  monoMDS(d, k = 2)
+}
+
+#––– 7. Procrustes + protest (R & p) vs Raw
+methods <- setdiff(names(TABS), "Raw")
+cmb <- rbind(rep("Raw", length(methods)), methods)
+
+RES_list <- alply(seq_len(ncol(cmb)), 1, function(i) {
+  m1 <- cmb[1, i]; m2 <- cmb[2, i]
+  df1 <- TABS[[m1]]; df2 <- TABS[[m2]]
+  smp <- intersect(colnames(df1)[-1], colnames(df2)[-1])
+  df1 <- df1[, c("OTU", smp), with = FALSE]
+  df2 <- df2[, c("OTU", smp), with = FALSE]
+  
+  ord1 <- get_ordination(get_matrix(df1))
+  ord2 <- get_ordination(get_matrix(df2))
+  
+  pr <- procrustes(ord1, ord2)
+  pt <- protest(ord1, ord2, permutations = 999)
+  
+  r_vec <- residuals(pr)
+  data.table(
+    table1   = m1,
+    table2   = m2,
+    sample   = names(r_vec),
+    residual = as.numeric(r_vec),
+    R_value  = pt$t0,
+    p_value  = pt$signif
+  )
+}, .progress = "text")
+
+RES <- rbindlist(RES_list)
+RES[, Comparison := paste(table1, table2, sep = " vs ")]
+
+#––– 8. Merge sample metadata
+keep_cols <- c("run_accession", "sample_accession", "isolation_source",
+               "environment_biome", "environment_feature",
+               "environment_material", "geographic_location_country_and_or_sea",
+               "geographic_location_depth", "Richness", "Shannon")
+RES <- merge(RES, META[, ..keep_cols],
+             by.x = "sample", by.y = "run_accession", all.x = TRUE)
+
+#––– 9. Order factor levels of table2 by mean residual
+ord2 <- RES[, .(MeanResid = mean(residual)), by = "table2"]
+setorder(ord2, -MeanResid)
+RES$table2 <- factor(RES$table2, levels = ord2$table2)
+
+#––– 10. Define colors & labels
+method_colors <- c(
+  chimeras_denovo_custom     = "#E97169",
+  removeBimeraDenovo_custom  = "#0A9F37",
+  uchime_denovo_custom       = "#5177B8",
+  chimeras_denovo_default    = "#FF8C00",
+  removeBimeraDenovo_default = "#9370DB",
+  uchime_denovo_default      = "#FFD700"
+)
+method_labels <- c(
+  chimeras_denovo_custom     = "chimeras_denovo adjusted+FP-FN",
+  uchime_denovo_custom       = "uchime_denovo adjusted+FP-FN",
+  removeBimeraDenovo_custom  = "removeBimeraDenovo+FP-FN",
+  chimeras_denovo_default    = "chimeras_denovo default",
+  uchime_denovo_default      = "uchime_denovo default",
+  removeBimeraDenovo_default = "removeBimeraDenovo default"
+)
+
+#––– 11. Plot (print + save PDF & SVG)
+pp <- ggplot(RES, aes(isolation_source, residual, fill = table2)) +
+  geom_boxplot() +
+  scale_fill_manual(
+    name   = "Chimera removal method",
+    values = method_colors,
+    labels = method_labels
+  ) +
+  labs(
+    x     = "isolation source",
+    y     = "residual",
+    title = "Procrustes residuals: Raw vs chimera removal methods"
+  ) +
+  theme_light() +
+  theme(axis.text.x = element_text(hjust = 1))
+
+print(pp)
+
+ggsave(pp,
+       filename = "Jamy__Procrustes_residuals_VsRaw_chat.pdf",
+       width = 12, height = 7)
+ggsave(pp,
+       filename = "Jamy__Procrustes_residuals_VsRaw_chat.svg",
+       width = 12, height = 7, device = "svg")
+
+#––– 12. Export results (including R & p) to Excel
+write.xlsx(
+  list(Residuals = RES),
+  file     = "Jamy__Procrustes_residuals_VsRaw_with_stats_chat.xlsx",
+  colNames = TRUE
+)
+
+message("Analysis complete! Files saved:")
+message("  - Jamy__Procrustes_residuals_VsRaw_chat.pdf")
+message("  - Jamy__Procrustes_residuals_VsRaw_chat.svg")
+message("  - Jamy__Procrustes_residuals_VsRaw_with_stats.xlsx")
