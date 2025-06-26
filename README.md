@@ -1,4 +1,4 @@
-# "Evaluation of chimera detection algorithms on long-read amplicons" (Hakimzadeh et al. 2025)
+# "Are we throwing away good data? Evaluation of chimera detection algorithms on long-read amplicons reveals high false positive rates across algorithms" (Hakimzadeh et al. 2025)
 
 ### Structure
 This repository contains the data and part of the analysis stack for the abovementioned paper. It is structured as follows:
