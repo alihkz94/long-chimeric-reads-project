@@ -59,7 +59,7 @@ class ChimeraGenerator:
         """
         length = len(chimera_seq)
         # Allow slightly shorter/longer sequences than original bounds
-        min_allowed = max(self.min_seq_len * 0.9, 250)  # Never below 250
+        min_allowed = max(self.min_seq_len * 0.9, 50)  # Never below 50
         max_allowed = min(self.max_seq_len * 1.1, 1500) # Never above 1500
         
         return min_allowed <= length <= max_allowed
